@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Helpdesk</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div>
+        <span class="logo">Helpdesk.IO</span>
+      </div>
+      <div class="user-nav">
+        <span class="user-info" id="userEmail"></span>
+        <span class="role-badge">Administrator</span>
+        <button class="btn btn-secondary" onclick="API.logout()">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Stats Widgets -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <h3>Total Tickets</h3>
+        <div class="stat-number" id="statTotal">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Open Tickets</h3>
+        <div class="stat-number" id="statOpen">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Closed/Resolved</h3>
+        <div class="stat-number" id="statClosed">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Avg. Resolution</h3>
+        <div class="stat-number" id="statAvg" style="font-size: 1.6rem; padding-top: 0.4rem;">- days</div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <!-- Left side: all tickets -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <h2>All Support Tickets</h2>
+          <select id="statusFilter" onchange="filterStatus(this.value)" style="width: 150px; padding: 0.5rem;">
+            <option value="">All Statuses</option>
+            <option value="open">Open</option>
+            <option value="assigned">Assigned</option>
+            <option value="in_progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+
+        <div id="ticketList" class="ticket-list">
+          <p style="color: var(--text-secondary);">Loading tickets...</p>
+        </div>
+
+        <div class="pagination">
+          <button class="btn btn-secondary" id="prevBtn" onclick="changePage(-1)">Previous</button>
+          <span id="pageInfo" style="font-size: 0.95rem; color: var(--text-secondary);">Page 1 of 1</span>
+          <button class="btn btn-secondary" id="nextBtn" onclick="changePage(1)">Next</button>
+        </div>
+      </div>
+
+      <!-- Right side: agent workload -->
+      <div>
+        <h3 style="margin-bottom: 1rem;">Agent Workloads</h3>
+        <div class="card" style="max-width: 100%; padding: 1.5rem;">
+          <table style="margin-top: 0;">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th style="text-align: right;">Active Tickets</th>
+              </tr>
+            </thead>
+            <tbody id="agentWorkloads">
+              <tr>
+                <td colspan="2" style="color: var(--text-secondary);">Loading workload...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script>
+    const session = API.getSession();
+    if (!session || session.role !== 'admin') {
+      window.location.href = 'index.html';
+    }
+
+    document.getElementById('userEmail').textContent = session.email;
+
+    let currentFilter = '';
+    let currentPage = 1;
+    const limit = 20;
+    let agentsList = [];
+
+    async function loadStats() {
+      try {
+        const stats = await API.getAdminStats();
+        document.getElementById('statTotal').textContent = stats.total;
+        document.getElementById('statOpen').textContent = stats.open;
+        document.getElementById('statClosed').textContent = stats.closed;
+        document.getElementById('statAvg').textContent = `${stats.avg_resolution_days} days`;
+      } catch (err) {
+        console.error('Stats loading failed:', err);
+      }
+    }
+
+    async function loadAgents() {
+      try {
+        agentsList = await API.getAdminAgents();
+        const tbody = document.getElementById('agentWorkloads');
+        if (agentsList.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="2" style="color: var(--text-secondary); text-align: center;">No support agents found.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = agentsList.map(agent => `
+          <tr>
+            <td>${escapeHtml(agent.email)}</td>
+            <td style="text-align: right; font-weight: 600; color: var(--accent-primary);">${agent.ticket_count}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Agents loading failed:', err);
+      }
+    }
+
+    async function loadTickets() {
+      const ticketList = document.getElementById('ticketList');
+      try {
+        const response = await API.getAdminTickets(currentFilter, currentPage, limit);
+        const tickets = response.data;
+        const total = response.total;
+        const totalPages = Math.ceil(total / limit) || 1;
+
+        document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+        document.getElementById('prevBtn').disabled = currentPage === 1;
+        document.getElementById('nextBtn').disabled = currentPage === totalPages;
+
+        if (tickets.length === 0) {
+          ticketList.innerHTML = `<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No tickets match your query.</p>`;
+          return;
+        }
+
+        ticketList.innerHTML = tickets.map(ticket => {
+          const assignOptions = agentsList.map(a => `
+            <option value="${a.id}" ${ticket.assigned_agent_id === a.id ? 'selected' : ''}>${escapeHtml(a.email)}</option>
+          `).join('');
+
+          return `
+            <div class="ticket-item" style="cursor: default;">
+              <div class="ticket-info" style="cursor: pointer;" onclick="window.location.href='ticket-detail.html?id=${ticket.id}'">
+                <span class="ticket-title">${escapeHtml(ticket.title)}</span>
+                <div class="ticket-meta">
+                  <span>#${ticket.id}</span>
+                  <span>Customer: ${escapeHtml(ticket.customer_email || 'System')}</span>
+                  <span>Created: ${new Date(ticket.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <select onchange="assignAgent(${ticket.id}, this.value)" style="width: 160px; padding: 0.25rem 0.5rem; font-size: 0.85rem;">
+                  <option value="">-- Assign Agent --</option>
+                  ${assignOptions}
+                </select>
+                <span class="status-badge status-${ticket.status}">${ticket.status.replace('_', ' ')}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        ticketList.innerHTML = `<p style="color: #ef4444;">Error loading tickets: ${err.message}</p>`;
+      }
+    }
+
+    async function assignAgent(ticketId, agentId) {
+      if (!agentId) return;
+      try {
+        await API.assignTicket(ticketId, agentId);
+        loadTickets();
+        loadAgents();
+      } catch (err) {
+        alert(`Assignment failed: ${err.message}`);
+      }
+    }
+
+    function filterStatus(status) {
+      currentFilter = status;
+      currentPage = 1;
+      loadTickets();
+    }
+
+    function changePage(delta) {
+      currentPage += delta;
+      loadTickets();
+    }
+
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    async function init() {
+      await loadAgents(); // load agent list first so assign selector builds properly
+      await loadStats();
+      await loadTickets();
+    }
+
+    init();
+  </script>
+</body>
+</html>

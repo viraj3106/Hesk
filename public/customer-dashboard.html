@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Dashboard - Helpdesk</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div>
+        <span class="logo">Helpdesk.IO</span>
+      </div>
+      <div class="user-nav">
+        <span class="user-info" id="userEmail"></span>
+        <span class="role-badge">Customer</span>
+        <button class="btn btn-secondary" onclick="API.logout()">Sign Out</button>
+      </div>
+    </header>
+
+    <div class="dashboard-grid">
+      <div>
+        <h2 style="margin-bottom: 1.5rem;">Your Tickets</h2>
+        <div id="ticketList" class="ticket-list">
+          <p style="color: var(--text-secondary);">Loading tickets...</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="max-width: 100%; padding: 2rem;">
+          <h3 style="margin-bottom: 1rem;">Raise a Ticket</h3>
+          <form id="createTicketForm">
+            <div class="form-group">
+              <label for="ticketTitle">Subject</label>
+              <input type="text" id="ticketTitle" placeholder="e.g. Can't access my invoice" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="ticketDesc">Description</label>
+              <textarea id="ticketDesc" rows="5" placeholder="Explain the issue in detail..." required></textarea>
+            </div>
+
+            <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Submit Ticket</button>
+          </form>
+          <div id="ticketError" style="margin-top: 1rem; color: #ef4444; font-size: 0.9rem; display: none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script>
+    const session = API.getSession();
+    if (!session || session.role !== 'customer') {
+      window.location.href = 'index.html';
+    }
+
+    document.getElementById('userEmail').textContent = session.email;
+
+    async function loadTickets() {
+      const ticketList = document.getElementById('ticketList');
+      try {
+        const tickets = await API.getMyTickets();
+        if (tickets.length === 0) {
+          ticketList.innerHTML = `<p style="color: var(--text-secondary);">You haven't submitted any tickets yet.</p>`;
+          return;
+        }
+        
+        ticketList.innerHTML = tickets.map(ticket => `
+          <a href="ticket-detail.html?id=${ticket.id}" class="ticket-item">
+            <div class="ticket-info">
+              <span class="ticket-title">${escapeHtml(ticket.title)}</span>
+              <div class="ticket-meta">
+                <span>#${ticket.id}</span>
+                <span>Created: ${new Date(ticket.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <span class="status-badge status-${ticket.status}">${ticket.status.replace('_', ' ')}</span>
+          </a>
+        `).join('');
+      } catch (err) {
+        ticketList.innerHTML = `<p style="color: #ef4444;">Error loading tickets: ${err.message}</p>`;
+      }
+    }
+
+    document.getElementById('createTicketForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('ticketTitle').value;
+      const desc = document.getElementById('ticketDesc').value;
+      const errorDiv = document.getElementById('ticketError');
+      errorDiv.style.display = 'none';
+
+      try {
+        await API.createTicket(title, desc);
+        document.getElementById('createTicketForm').reset();
+        loadTickets();
+      } catch (err) {
+        errorDiv.textContent = err.message;
+        errorDiv.style.display = 'block';
+      }
+    });
+
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    loadTickets();
+  </script>
+</body>
+</html>
