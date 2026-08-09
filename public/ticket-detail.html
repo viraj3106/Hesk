@@ -277,8 +277,12 @@
     }
 
     async function reopenTicket() {
+      const confirmAction = confirm("Are you sure the issue is not resolved?");
+      if (!confirmAction) return;
+
       try {
         await API.reopenTicket(ticketId);
+        alert("Ticket reopened successfully. An agent will continue working on your issue.");
         loadTicket();
       } catch (err) {
         alert(`Failed to reopen ticket: ${err.message}`);

@@ -642,7 +642,7 @@ app.patch('/tickets/:id/reopen', authenticateJWT, requireRole(['customer']), asy
     if (!ticket) return;
 
     // Must own the ticket
-    if (ticket.customer_id !== req.user.id) {
+    if (Number(ticket.customer_id) !== Number(req.user.id)) {
       return res.status(403).json({ error: 'Access forbidden: not your ticket' });
     }
 
@@ -651,11 +651,32 @@ app.patch('/tickets/:id/reopen', authenticateJWT, requireRole(['customer']), asy
       return res.status(400).json({ error: 'Only resolved or closed tickets can be reopened' });
     }
 
-    // Reopen -> in_progress
-    await dbRun(
-      "UPDATE tickets SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [ticket.id]
-    );
+    // Reopen -> in_progress in Supabase
+    const { error: updateError } = await supabase
+      .from('tickets')
+      .update({
+        status: 'in_progress',
+        resolved_at: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', ticket.id);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    // Insert response to thread
+    const { error: insertError } = await supabase
+      .from('responses')
+      .insert([{
+        ticket_id: ticket.id,
+        sender_id: req.user.id,
+        message: 'Customer reopened this ticket because the issue was not resolved.'
+      }]);
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
+    }
 
     res.json({ message: 'Ticket reopened successfully', status: 'in_progress' });
   } catch (err) {

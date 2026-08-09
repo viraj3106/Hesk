@@ -165,5 +165,11 @@ const API = {
       method: 'POST',
       body: JSON.stringify({ resetToken, newPassword })
     });
+  },
+
+  async reopenTicket(ticketId) {
+    return request(`/tickets/${ticketId}/reopen`, {
+      method: 'PATCH'
+    });
   }
 };
