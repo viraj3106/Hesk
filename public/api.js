@@ -81,6 +81,10 @@ const API = {
     return request(`/tickets/${id}`);
   },
 
+  async getTicket(id) {
+    return this.getTicketDetails(id);
+  },
+
   async postResponse(id, message) {
     return request(`/tickets/${id}/respond`, {
       method: 'POST',
@@ -88,11 +92,19 @@ const API = {
     });
   },
 
+  async respondToTicket(id, message) {
+    return this.postResponse(id, message);
+  },
+
   async updateStatus(id, status) {
     return request(`/tickets/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status })
     });
+  },
+
+  async updateTicketStatus(id, status) {
+    return this.updateStatus(id, status);
   },
 
   async assignTicket(id, agent_id) {

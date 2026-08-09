@@ -19,6 +19,22 @@
       </div>
     </header>
 
+    <!-- Stats Widgets -->
+    <div class="stats-row" style="margin-bottom: 2rem;">
+      <div class="stat-card">
+        <h3>Assigned</h3>
+        <div class="stat-number" id="statAssigned">0</div>
+      </div>
+      <div class="stat-card">
+        <h3>In Progress</h3>
+        <div class="stat-number" id="statInProgress">0</div>
+      </div>
+      <div class="stat-card">
+        <h3>Resolved</h3>
+        <div class="stat-number" id="statResolved">0</div>
+      </div>
+    </div>
+
     <div>
       <h2 style="margin-bottom: 1.5rem;">Your Assigned Tickets</h2>
       
@@ -29,11 +45,11 @@
         <button class="tab" onclick="filterStatus('resolved')">Resolved</button>
         <button class="tab" onclick="filterStatus('closed')">Closed</button>
       </div>
-
+ 
       <div id="ticketList" class="ticket-list">
         <p style="color: var(--text-secondary);">Loading queue...</p>
       </div>
-
+ 
       <div class="pagination">
         <button class="btn btn-secondary" id="prevBtn" onclick="changePage(-1)">Previous</button>
         <span id="pageInfo" style="font-size: 0.95rem; color: var(--text-secondary);">Page 1 of 1</span>
@@ -58,6 +74,17 @@
     async function loadQueue() {
       const ticketList = document.getElementById('ticketList');
       try {
+        // Fetch all assigned tickets to calculate stats
+        const allRes = await API.getAgentQueue('', 1, 1000);
+        const allAssigned = allRes.data || [];
+        const assignedCount = allAssigned.filter(t => t.status === 'assigned').length;
+        const inProgressCount = allAssigned.filter(t => t.status === 'in_progress').length;
+        const resolvedCount = allAssigned.filter(t => t.status === 'resolved').length;
+
+        document.getElementById('statAssigned').textContent = assignedCount;
+        document.getElementById('statInProgress').textContent = inProgressCount;
+        document.getElementById('statResolved').textContent = resolvedCount;
+
         const response = await API.getAgentQueue(currentStatus, currentPage, limit);
         const tickets = response.data;
         const total = response.total;

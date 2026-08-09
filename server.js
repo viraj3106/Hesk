@@ -190,24 +190,31 @@ app.get('/tickets/queue', authenticateJWT, requireRole(['agent']), async (req, r
   const offset = (page - 1) * limit;
 
   try {
-    let sql = 'SELECT * FROM tickets WHERE assigned_agent_id = ?';
-    let countSql = 'SELECT COUNT(*) as total FROM tickets WHERE assigned_agent_id = ?';
-    let params = [req.user.id];
+    let query = supabase
+      .from('tickets')
+      .select('*', { count: 'exact' })
+      .eq('assigned_agent_id', req.user.id);
 
     if (statusFilter) {
-      sql += ' AND status = ?';
-      countSql += ' AND status = ?';
-      params.push(statusFilter);
+      query = query.eq('status', statusFilter);
     }
 
-    sql += ' ORDER BY updated_at DESC LIMIT ? OFFSET ?';
-    const queryParams = [...params, limit, offset];
+    query = query
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
-    const totalRow = await dbGet(countSql, params);
-    const total = totalRow ? totalRow.total : 0;
-    const data = await dbAll(sql, queryParams);
+    const { data: tickets, count, error } = await query;
 
-    res.json({ data, page, limit, total });
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({
+      data: tickets || [],
+      page,
+      limit,
+      total: count || 0
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -316,7 +323,7 @@ app.patch('/tickets/:id/status', authenticateJWT, requireRole(['agent', 'admin']
     if (!ticket) return;
 
     // RBAC check: Agent must be the assigned agent, admin can do all
-    if (req.user.role === 'agent' && ticket.assigned_agent_id !== req.user.id) {
+    if (req.user.role === 'agent' && Number(ticket.assigned_agent_id) !== Number(req.user.id)) {
       return res.status(403).json({ error: 'Access forbidden: not assigned to you' });
     }
 
@@ -328,16 +335,22 @@ app.patch('/tickets/:id/status', authenticateJWT, requireRole(['agent', 'admin']
     }
 
     // assigned_agent_id must be set before status can move past 'assigned'
-    // 'assigned' to 'in_progress', 'resolved', 'closed'
     if (status !== 'assigned' && !ticket.assigned_agent_id) {
       return res.status(400).json({ error: 'Cannot transition status past assigned without an assigned agent' });
     }
 
     // Update
-    await dbRun(
-      'UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [status, ticket.id]
-    );
+    const { error: updateError } = await supabase
+      .from('tickets')
+      .update({
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', ticket.id);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
 
     res.json({ message: `Status updated to ${status}` });
   } catch (err) {
@@ -357,19 +370,32 @@ app.patch('/tickets/:id/assign', authenticateJWT, requireRole(['admin']), async 
     if (!ticket) return;
 
     // Verify agent_id is indeed an agent
-    const agent = await dbGet('SELECT role FROM users WHERE id = ?', [agent_id]);
+    const { data: agent, error: agentError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', agent_id)
+      .maybeSingle();
+
+    if (agentError) {
+      return res.status(500).json({ error: agentError.message });
+    }
     if (!agent || agent.role !== 'agent') {
       return res.status(400).json({ error: 'Invalid agent ID' });
     }
 
-    // Validate Transition: from 'open' -> 'assigned'. Wait, can admin reassign from 'assigned' or 'in_progress'?
-    // The spec says "open --assign-> assigned", but admin can typically assign.
-    // If we only allow open to assigned, let's enforce that, or allow reassignment.
-    // Let's enforce that status becomes 'assigned' and update assigned_agent_id.
-    await dbRun(
-      'UPDATE tickets SET assigned_agent_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [agent_id, 'assigned', ticket.id]
-    );
+    // Update
+    const { error: updateError } = await supabase
+      .from('tickets')
+      .update({
+        assigned_agent_id: agent_id,
+        status: 'assigned',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', ticket.id);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
 
     res.json({ message: 'Ticket assigned successfully', assigned_agent_id: agent_id, status: 'assigned' });
   } catch (err) {
