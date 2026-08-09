@@ -149,10 +149,17 @@ const API = {
     });
   },
 
-  async resetPassword(token, newPassword) {
+  async verifyOtp(email, otp) {
+    return request('/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp })
+    });
+  },
+
+  async resetPassword(resetToken, newPassword) {
     return request('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ token, newPassword })
+      body: JSON.stringify({ resetToken, newPassword })
     });
   }
 };

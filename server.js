@@ -117,7 +117,7 @@ app.post('/auth/forgot-password', async (req, res) => {
 
   const genericResponse = {
     success: true,
-    message: 'If an account exists, password reset instructions have been sent.'
+    message: 'If an account exists, a verification code has been sent.'
   };
 
   try {
@@ -132,17 +132,26 @@ app.post('/auth/forgot-password', async (req, res) => {
     }
 
     if (user) {
+      // Invalidate any previous OTPs for this user by setting expires_at to 1970
+      await supabase
+        .from('password_reset_tokens')
+        .update({ expires_at: new Date(0).toISOString() })
+        .eq('user_id', user.id)
+        .eq('used', false);
+
       const crypto = require('crypto');
-      const token = crypto.randomBytes(32).toString('hex');
-      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-      const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+      const otp = crypto.randomInt(100000, 1000000).toString();
+      const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+      const expiresAt = new Date(Date.now() + 600000).toISOString(); // 10 minutes
 
       const { error: insertError } = await supabase
         .from('password_reset_tokens')
         .insert([{
           user_id: user.id,
-          token_hash: tokenHash,
+          otp_hash: otpHash,
           expires_at: expiresAt,
+          attempts: 0,
+          verified: false,
           used: false
         }]);
 
@@ -150,11 +159,11 @@ app.post('/auth/forgot-password', async (req, res) => {
         return res.status(500).json({ error: insertError.message });
       }
 
-      console.log(`[DEV ONLY] Password reset token for ${email}: ${token}`);
+      console.log(`[DEV] Password reset OTP generated for testing: ${otp}`);
 
       const fs = require('fs');
       try {
-        fs.writeFileSync('reset_token_dev.json', JSON.stringify({ email, token }));
+        fs.writeFileSync('reset_token_dev.json', JSON.stringify({ email, otp }));
       } catch (err) {
         console.error('Failed to write dev reset token file:', err.message);
       }
@@ -166,11 +175,104 @@ app.post('/auth/forgot-password', async (req, res) => {
   }
 });
 
+// POST /auth/verify-otp
+app.post('/auth/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp || otp.length !== 6) {
+    return res.status(400).json({ error: 'Email and 6-digit OTP are required' });
+  }
+
+  try {
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (userError) {
+      return res.status(500).json({ error: userError.message });
+    }
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    const { data: records, error: fetchError } = await supabase
+      .from('password_reset_tokens')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('used', false)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      return res.status(500).json({ error: fetchError.message });
+    }
+
+    const latestToken = (records || []).find(r => !r.verified);
+    if (!latestToken) {
+      return res.status(400).json({ error: 'Verification code expired or not found' });
+    }
+
+    if (latestToken.attempts >= 5) {
+      return res.status(400).json({ error: 'Too many attempts. Please request a new OTP.' });
+    }
+
+    const newAttempts = latestToken.attempts + 1;
+    await supabase
+      .from('password_reset_tokens')
+      .update({ attempts: newAttempts })
+      .eq('id', latestToken.id);
+
+    const crypto = require('crypto');
+    const hashedInputOtp = crypto.createHash('sha256').update(otp).digest('hex');
+
+    const match = crypto.timingSafeEqual(
+      Buffer.from(latestToken.otp_hash, 'utf-8'),
+      Buffer.from(hashedInputOtp, 'utf-8')
+    );
+
+    if (!match) {
+      const remaining = 5 - newAttempts;
+      return res.status(400).json({ error: `Invalid verification code. ${remaining} attempts remaining.` });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetExpiresAt = new Date(Date.now() + 300000).toISOString(); // 5 minutes
+
+    const { error: updateError } = await supabase
+      .from('password_reset_tokens')
+      .update({
+        verified: true,
+        reset_token_hash: resetTokenHash,
+        reset_expires_at: resetExpiresAt
+      })
+      .eq('id', latestToken.id);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    const fs = require('fs');
+    try {
+      if (fs.existsSync('reset_token_dev.json')) {
+        const fileContent = JSON.parse(fs.readFileSync('reset_token_dev.json', 'utf8'));
+        fileContent.token = resetToken;
+        fs.writeFileSync('reset_token_dev.json', JSON.stringify(fileContent));
+      }
+    } catch (err) {}
+
+    res.json({ success: true, resetToken });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /auth/reset-password
 app.post('/auth/reset-password', async (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword) {
-    return res.status(400).json({ error: 'Token and newPassword are required' });
+  const { resetToken, newPassword } = req.body;
+  if (!resetToken || !newPassword) {
+    return res.status(400).json({ error: 'resetToken and newPassword are required' });
   }
   if (newPassword.length < 6) {
     return res.status(400).json({ error: 'Password must be at least 6 characters long' });
@@ -178,25 +280,22 @@ app.post('/auth/reset-password', async (req, res) => {
 
   try {
     const crypto = require('crypto');
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
-    const { data: resetTokenRecord, error: fetchError } = await supabase
+    const { data: record, error: fetchError } = await supabase
       .from('password_reset_tokens')
       .select('*')
-      .eq('token_hash', tokenHash)
+      .eq('reset_token_hash', tokenHash)
+      .eq('verified', true)
       .eq('used', false)
+      .gt('reset_expires_at', new Date().toISOString())
       .maybeSingle();
 
     if (fetchError) {
       return res.status(500).json({ error: fetchError.message });
     }
-    if (!resetTokenRecord) {
-      return res.status(400).json({ error: 'Invalid or already used reset token' });
-    }
-
-    const expiresAt = new Date(resetTokenRecord.expires_at);
-    if (expiresAt < new Date()) {
-      return res.status(400).json({ error: 'Reset token has expired' });
+    if (!record) {
+      return res.status(400).json({ error: 'Invalid, expired, or already used reset token' });
     }
 
     const salt = bcrypt.genSaltSync(10);
@@ -205,7 +304,7 @@ app.post('/auth/reset-password', async (req, res) => {
     const { error: userUpdateError } = await supabase
       .from('users')
       .update({ password_hash: passwordHash })
-      .eq('id', resetTokenRecord.user_id);
+      .eq('id', record.user_id);
 
     if (userUpdateError) {
       return res.status(500).json({ error: userUpdateError.message });
@@ -214,7 +313,7 @@ app.post('/auth/reset-password', async (req, res) => {
     const { error: tokenUpdateError } = await supabase
       .from('password_reset_tokens')
       .update({ used: true })
-      .eq('id', resetTokenRecord.id);
+      .eq('id', record.id);
 
     if (tokenUpdateError) {
       return res.status(500).json({ error: tokenUpdateError.message });

@@ -77,7 +77,7 @@
       
       <div id="forgotPasswordSection" style="display: none;">
         <h2>Forgot Password</h2>
-        <p>Enter your email to request a reset token</p>
+        <p>Enter your registered email address.</p>
         
         <form id="forgotForm">
           <div class="form-group">
@@ -85,7 +85,7 @@
             <input type="email" id="forgotEmail" placeholder="you@example.com" required>
           </div>
           
-          <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Request Reset Token</button>
+          <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Send OTP</button>
         </form>
         
         <p style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
@@ -93,16 +93,35 @@
         </p>
       </div>
 
-      <div id="resetPasswordSection" style="display: none;">
-        <h2>Reset Password</h2>
-        <p>Enter the reset token and your new password</p>
+      <div id="verifyOtpSection" style="display: none;">
+        <h2>Enter Verification Code</h2>
+        <p>We sent a 6-digit verification code.</p>
         
-        <form id="resetForm">
-          <div class="form-group">
-            <label for="resetToken">Reset Token</label>
-            <input type="text" id="resetToken" placeholder="Enter token" required>
+        <form id="verifyOtpForm">
+          <div class="form-group" style="text-align: center;">
+            <label for="otpCode" style="text-align: left; display: block; margin-bottom: 0.5rem;">Verification Code</label>
+            <input type="text" id="otpCode" placeholder="000000" pattern="[0-9]{6}" maxlength="6" inputmode="numeric" required style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem; font-weight: 700; padding: 0.5rem; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; width: 100%; max-width: 280px; box-sizing: border-box; margin: 0 auto; display: block;">
           </div>
           
+          <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Verify OTP</button>
+        </form>
+
+        <div style="margin-top: 1rem; text-align: center;">
+          <button id="resendOtpBtn" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.4rem 1rem;">Resend OTP</button>
+          <div id="resendCooldown" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;"></div>
+        </div>
+        
+        <p style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
+          Back to <a href="#" id="showLoginFromVerify" style="color: var(--accent-primary); text-decoration: none; font-weight: 600;">Sign in</a>
+        </p>
+      </div>
+
+      <div id="resetPasswordSection" style="display: none;">
+        <h2>Create New Password</h2>
+        <p>Please enter your new password below.</p>
+        
+        <form id="resetForm">
+          <input type="hidden" id="resetToken">
           <div class="form-group">
             <label for="resetPassword">New Password</label>
             <input type="password" id="resetPassword" placeholder="••••••••" required>
@@ -144,17 +163,44 @@
     const loginSection = document.getElementById('loginFormSection');
     const signupSection = document.getElementById('signupFormSection');
     const forgotSection = document.getElementById('forgotPasswordSection');
+    const verifyOtpSection = document.getElementById('verifyOtpSection');
     const resetSection = document.getElementById('resetPasswordSection');
     const showForgot = document.getElementById('showForgot');
     const showLoginFromForgot = document.getElementById('showLoginFromForgot');
+    const showLoginFromVerify = document.getElementById('showLoginFromVerify');
     const showLoginFromReset = document.getElementById('showLoginFromReset');
     const authError = document.getElementById('authError');
+    const otpCodeInput = document.getElementById('otpCode');
+    const resendOtpBtn = document.getElementById('resendOtpBtn');
+    const resendCooldown = document.getElementById('resendCooldown');
+
+    let resetEmail = '';
+    let cooldownTimer = null;
+
+    function startResendCooldown() {
+      let seconds = 30;
+      resendOtpBtn.disabled = true;
+      resendCooldown.textContent = `You can resend in ${seconds}s`;
+      
+      if (cooldownTimer) clearInterval(cooldownTimer);
+      cooldownTimer = setInterval(() => {
+        seconds--;
+        if (seconds <= 0) {
+          clearInterval(cooldownTimer);
+          resendOtpBtn.disabled = false;
+          resendCooldown.textContent = '';
+        } else {
+          resendCooldown.textContent = `You can resend in ${seconds}s`;
+        }
+      }, 1000);
+    }
 
     showSignup.addEventListener('click', (e) => {
       e.preventDefault();
       loginSection.style.display = 'none';
       signupSection.style.display = 'block';
       forgotSection.style.display = 'none';
+      verifyOtpSection.style.display = 'none';
       resetSection.style.display = 'none';
       authError.style.display = 'none';
     });
@@ -164,6 +210,7 @@
       signupSection.style.display = 'none';
       loginSection.style.display = 'block';
       forgotSection.style.display = 'none';
+      verifyOtpSection.style.display = 'none';
       resetSection.style.display = 'none';
       authError.style.display = 'none';
     });
@@ -173,6 +220,7 @@
       loginSection.style.display = 'none';
       signupSection.style.display = 'none';
       forgotSection.style.display = 'block';
+      verifyOtpSection.style.display = 'none';
       resetSection.style.display = 'none';
       authError.style.display = 'none';
     });
@@ -180,6 +228,13 @@
     showLoginFromForgot.addEventListener('click', (e) => {
       e.preventDefault();
       forgotSection.style.display = 'none';
+      loginSection.style.display = 'block';
+      authError.style.display = 'none';
+    });
+
+    showLoginFromVerify.addEventListener('click', (e) => {
+      e.preventDefault();
+      verifyOtpSection.style.display = 'none';
       loginSection.style.display = 'block';
       authError.style.display = 'none';
     });
@@ -227,13 +282,45 @@
       e.preventDefault();
       authError.style.display = 'none';
       const email = document.getElementById('forgotEmail').value;
+      resetEmail = email;
 
       try {
-        const data = await API.forgotPassword(email);
-        document.getElementById('resetToken').value = data.token || '';
+        await API.forgotPassword(email);
         forgotSection.style.display = 'none';
+        verifyOtpSection.style.display = 'block';
+        otpCodeInput.value = '';
+        otpCodeInput.focus();
+        startResendCooldown();
+        alert('Verification code sent. If the account exists, you can verify it now.');
+      } catch (err) {
+        authError.textContent = err.message;
+        authError.style.display = 'block';
+      }
+    });
+
+    resendOtpBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      authError.style.display = 'none';
+      try {
+        await API.forgotPassword(resetEmail);
+        startResendCooldown();
+        alert('Verification code resent.');
+      } catch (err) {
+        authError.textContent = err.message;
+        authError.style.display = 'block';
+      }
+    });
+
+    document.getElementById('verifyOtpForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      authError.style.display = 'none';
+      const otp = otpCodeInput.value;
+
+      try {
+        const data = await API.verifyOtp(resetEmail, otp);
+        document.getElementById('resetToken').value = data.resetToken;
+        verifyOtpSection.style.display = 'none';
         resetSection.style.display = 'block';
-        alert('Reset token generated. For testing/demo convenience, the token has been prefilled.');
       } catch (err) {
         authError.textContent = err.message;
         authError.style.display = 'block';
@@ -243,9 +330,15 @@
     document.getElementById('resetForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       authError.style.display = 'none';
-      const token = document.getElementById('resetToken').value;
+      const resetToken = document.getElementById('resetToken').value;
       const newPassword = document.getElementById('resetPassword').value;
       const confirmPassword = document.getElementById('confirmPassword').value;
+
+      if (newPassword.length < 6) {
+        authError.textContent = 'Password must be at least 6 characters long';
+        authError.style.display = 'block';
+        return;
+      }
 
       if (newPassword !== confirmPassword) {
         authError.textContent = 'Passwords do not match';
@@ -254,7 +347,7 @@
       }
 
       try {
-        await API.resetPassword(token, newPassword);
+        await API.resetPassword(resetToken, newPassword);
         resetSection.style.display = 'none';
         loginSection.style.display = 'block';
         alert('Password reset successfully. Please sign in with your new password.');
