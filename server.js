@@ -433,14 +433,16 @@ app.get('/admin/stats', authenticateJWT, requireRole(['admin']), async (req, res
   }
 });
 
-// Start Server after initializing Database
-const PORT = process.env.PORT || 3000;
-initDb().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// Start Server if run directly
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  initDb().then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  }).catch(err => {
+    console.error('Failed to initialize database:', err);
   });
-}).catch(err => {
-  console.error('Failed to initialize database:', err);
-});
+}
 
 module.exports = app; // For testing
