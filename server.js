@@ -122,27 +122,51 @@ async function getTicketOr404(req, res, id) {
 
 // POST /tickets — Create ticket (customer only)
 app.post('/tickets', authenticateJWT, requireRole(['customer']), async (req, res) => {
-  const { title, description } = req.body;
-  if (!title || !description) {
-    return res.status(400).json({ error: 'Title and description are required' });
+  const { title, category, priority, description } = req.body;
+  if (!title || !category || !priority || !description) {
+    return res.status(400).json({ error: 'Title, category, priority, and description are required' });
+  }
+  if (!['low', 'medium', 'high'].includes(priority)) {
+    return res.status(400).json({ error: 'Invalid priority' });
   }
 
   try {
-    const result = await dbRun(
-      'INSERT INTO tickets (title, description, customer_id) VALUES (?, ?, ?)',
-      [title, description, req.user.id]
-    );
-    res.status(201).json({ id: result.id, title, description, status: 'open', customer_id: req.user.id });
+    const { data: ticket, error } = await supabase
+      .from('tickets')
+      .insert([
+        {
+          title,
+          category,
+          priority,
+          description,
+          customer_id: req.user.id,
+          status: 'open'
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+    res.status(201).json(ticket);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // GET /tickets/my — Retrieve customer's tickets (customer only)
-app.post('/tickets/my-post-bypass-or-get', (req, res) => res.status(404).send()); // placeholder
 app.get('/tickets/my', authenticateJWT, requireRole(['customer']), async (req, res) => {
   try {
-    const tickets = await dbAll('SELECT * FROM tickets WHERE customer_id = ? ORDER BY created_at DESC', [req.user.id]);
+    const { data: tickets, error } = await supabase
+      .from('tickets')
+      .select('*')
+      .eq('customer_id', req.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
     res.json(tickets);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -35,6 +35,26 @@
               <label for="ticketTitle">Subject</label>
               <input type="text" id="ticketTitle" placeholder="e.g. Can't access my invoice" required>
             </div>
+
+            <div class="form-group">
+              <label for="ticketCategory">Category</label>
+              <select id="ticketCategory" required>
+                <option value="" disabled selected>Select Category</option>
+                <option value="Billing & Payments">Billing & Payments</option>
+                <option value="Technical Support">Technical Support</option>
+                <option value="Account Access">Account Access</option>
+                <option value="General Inquiry">General Inquiry</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="ticketPriority">Priority</label>
+              <select id="ticketPriority" required>
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
             
             <div class="form-group">
               <label for="ticketDesc">Description</label>
@@ -87,13 +107,16 @@
     document.getElementById('createTicketForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const title = document.getElementById('ticketTitle').value;
+      const category = document.getElementById('ticketCategory').value;
+      const priority = document.getElementById('ticketPriority').value;
       const desc = document.getElementById('ticketDesc').value;
       const errorDiv = document.getElementById('ticketError');
       errorDiv.style.display = 'none';
 
       try {
-        await API.createTicket(title, desc);
+        await API.createTicket(title, category, priority, desc);
         document.getElementById('createTicketForm').reset();
+        document.getElementById('ticketPriority').value = 'medium';
         loadTickets();
       } catch (err) {
         errorDiv.textContent = err.message;

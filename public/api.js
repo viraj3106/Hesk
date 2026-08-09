@@ -66,10 +66,10 @@ const API = {
     return data;
   },
 
-  async createTicket(title, description) {
+  async createTicket(title, category, priority, description) {
     return request('/tickets', {
       method: 'POST',
-      body: JSON.stringify({ title, description })
+      body: JSON.stringify({ title, category, priority, description })
     });
   },
 
