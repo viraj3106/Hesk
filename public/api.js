@@ -142,6 +142,10 @@ const API = {
     return request('/admin/stats');
   },
 
+  async getAdminAnalytics() {
+    return request('/admin/analytics');
+  },
+
   async forgotPassword(email) {
     return request('/auth/forgot-password', {
       method: 'POST',

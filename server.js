@@ -564,12 +564,19 @@ app.patch('/tickets/:id/status', authenticateJWT, requireRole(['agent', 'admin']
     }
 
     // Update
+    const updatePayload = {
+      status,
+      updated_at: new Date().toISOString()
+    };
+    if (status === 'resolved') {
+      updatePayload.resolved_at = new Date().toISOString();
+    } else {
+      updatePayload.resolved_at = null;
+    }
+
     const { error: updateError } = await supabase
       .from('tickets')
-      .update({
-        status,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', ticket.id);
 
     if (updateError) {
@@ -613,6 +620,7 @@ app.patch('/tickets/:id/assign', authenticateJWT, requireRole(['admin']), async 
       .update({
         assigned_agent_id: agent_id,
         status: 'assigned',
+        resolved_at: null,
         updated_at: new Date().toISOString()
       })
       .eq('id', ticket.id);
@@ -804,6 +812,102 @@ app.get('/admin/stats', authenticateJWT, requireRole(['admin']), async (req, res
       resolved,
       closed,
       avg_resolution_days
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/analytics — Admin Analytics data
+app.get('/admin/analytics', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  try {
+    const { data: tickets, error: ticketsError } = await supabase
+      .from('tickets')
+      .select('status, priority, created_at, resolved_at, assigned_agent_id');
+
+    if (ticketsError) {
+      return res.status(500).json({ error: ticketsError.message });
+    }
+
+    const totalTickets = tickets.length;
+    const openTickets = tickets.filter(t => t.status === 'open').length;
+    const assignedTickets = tickets.filter(t => t.status === 'assigned').length;
+    const inProgressTickets = tickets.filter(t => t.status === 'in_progress').length;
+    const resolvedTickets = tickets.filter(t => t.status === 'resolved').length;
+    const closedTickets = tickets.filter(t => t.status === 'closed').length;
+
+    const lowPriority = tickets.filter(t => t.priority === 'low').length;
+    const mediumPriority = tickets.filter(t => t.priority === 'medium').length;
+    const highPriority = tickets.filter(t => t.priority === 'high').length;
+
+    const resolvedTicketsList = tickets.filter(t => t.created_at && t.resolved_at);
+    let averageResolutionTime = 0;
+    if (resolvedTicketsList.length > 0) {
+      const totalMs = resolvedTicketsList.reduce((sum, t) => {
+        const created = new Date(t.created_at);
+        const resolved = new Date(t.resolved_at);
+        return sum + Math.max(0, resolved - created);
+      }, 0);
+      averageResolutionTime = Math.round(totalMs / (1000 * 60 * resolvedTicketsList.length));
+    }
+
+    const { data: agents, error: agentsError } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('role', 'agent');
+
+    if (agentsError) {
+      return res.status(500).json({ error: agentsError.message });
+    }
+
+    const agentWorkload = (agents || []).map(agent => {
+      const activeTickets = tickets.filter(t => 
+        t.assigned_agent_id === agent.id && 
+        ['assigned', 'in_progress'].includes(t.status)
+      ).length;
+      return {
+        id: agent.id,
+        name: agent.name || agent.email,
+        activeTickets
+      };
+    }).sort((a, b) => b.activeTickets - a.activeTickets);
+
+    const { data: recent, error: recentError } = await supabase
+      .from('tickets')
+      .select('id, title, category, priority, status, created_at, customer:customer_id (name, email), agent:assigned_agent_id (name, email)')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (recentError) {
+      return res.status(500).json({ error: recentError.message });
+    }
+
+    const recentTickets = (recent || []).map(t => ({
+      id: t.id,
+      title: t.title,
+      category: t.category,
+      priority: t.priority,
+      status: t.status,
+      customer_name: t.customer ? t.customer.name : null,
+      customer_email: t.customer ? t.customer.email : null,
+      assigned_agent_name: t.agent ? t.agent.name : null,
+      assigned_agent_email: t.agent ? t.agent.email : null,
+      created_at: t.created_at
+    }));
+
+    res.json({
+      totalTickets,
+      openTickets,
+      assignedTickets,
+      inProgressTickets,
+      resolvedTickets,
+      closedTickets,
+      lowPriority,
+      mediumPriority,
+      highPriority,
+      agentWorkload,
+      averageResolutionTime,
+      recentTickets
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
