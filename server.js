@@ -110,7 +110,16 @@ app.post('/auth/login', async (req, res) => {
 
 // Helper for validating tickets
 async function getTicketOr404(req, res, id) {
-  const ticket = await dbGet('SELECT * FROM tickets WHERE id = ?', [id]);
+  const { data: ticket, error } = await supabase
+    .from('tickets')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return null;
+  }
   if (!ticket) {
     res.status(404).json({ error: 'Ticket not found' });
     return null;
@@ -211,24 +220,35 @@ app.get('/tickets/:id', authenticateJWT, async (req, res) => {
     if (!ticket) return;
 
     // RBAC: customer must own it, agent must be assigned to it, admin can access all
-    if (req.user.role === 'customer' && ticket.customer_id !== req.user.id) {
+    if (req.user.role === 'customer' && Number(ticket.customer_id) !== Number(req.user.id)) {
       return res.status(403).json({ error: 'Access forbidden: not your ticket' });
     }
-    if (req.user.role === 'agent' && ticket.assigned_agent_id !== req.user.id) {
+    if (req.user.role === 'agent' && Number(ticket.assigned_agent_id) !== Number(req.user.id)) {
       return res.status(403).json({ error: 'Access forbidden: not assigned to you' });
     }
 
     // Retrieve responses
-    const responses = await dbAll(
-      `SELECT r.*, u.email, u.role 
-       FROM responses r 
-       JOIN users u ON r.user_id = u.id 
-       WHERE r.ticket_id = ? 
-       ORDER BY r.created_at ASC`,
-      [ticket.id]
-    );
+    const { data: responses, error: respError } = await supabase
+      .from('responses')
+      .select('*, users:sender_id (email, role)')
+      .eq('ticket_id', ticket.id)
+      .order('created_at', { ascending: true });
 
-    res.json({ ...ticket, responses });
+    if (respError) {
+      return res.status(500).json({ error: respError.message });
+    }
+
+    const flatResponses = (responses || []).map(r => ({
+      id: r.id,
+      ticket_id: r.ticket_id,
+      sender_id: r.sender_id,
+      message: r.message,
+      created_at: r.created_at,
+      email: r.users ? r.users.email : '',
+      role: r.users ? r.users.role : ''
+    }));
+
+    res.json({ ...ticket, responses: flatResponses });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -246,24 +266,37 @@ app.post('/tickets/:id/respond', authenticateJWT, async (req, res) => {
     if (!ticket) return;
 
     // RBAC check
-    if (req.user.role === 'customer' && ticket.customer_id !== req.user.id) {
+    if (req.user.role === 'customer' && Number(ticket.customer_id) !== Number(req.user.id)) {
       return res.status(403).json({ error: 'Access forbidden: not your ticket' });
     }
-    if (req.user.role === 'agent' && ticket.assigned_agent_id !== req.user.id) {
+    if (req.user.role === 'agent' && Number(ticket.assigned_agent_id) !== Number(req.user.id)) {
       return res.status(403).json({ error: 'Access forbidden: not assigned to you' });
     }
 
     // Insert response
-    await dbRun(
-      'INSERT INTO responses (ticket_id, user_id, message) VALUES (?, ?, ?)',
-      [ticket.id, req.user.id, message]
-    );
+    const { error: insertError } = await supabase
+      .from('responses')
+      .insert([
+        {
+          ticket_id: ticket.id,
+          sender_id: req.user.id,
+          message: message.trim()
+        }
+      ]);
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
+    }
 
     // Bump ticket updated_at
-    await dbRun(
-      'UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [ticket.id]
-    );
+    const { error: updateError } = await supabase
+      .from('tickets')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', ticket.id);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
 
     res.status(201).json({ message: 'Response added successfully' });
   } catch (err) {
