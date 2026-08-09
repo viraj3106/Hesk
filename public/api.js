@@ -126,9 +126,11 @@ const API = {
     return request(`/tickets/queue?${query.toString()}`);
   },
 
-  async getAdminTickets(status = '', page = 1, limit = 20) {
+  async getAdminTickets(status = '', priority = '', assignedAgentId = '', page = 1, limit = 20) {
     const query = new URLSearchParams({ page, limit });
     if (status) query.append('status', status);
+    if (priority) query.append('priority', priority);
+    if (assignedAgentId) query.append('assigned_agent_id', assignedAgentId);
     return request(`/admin/tickets?${query.toString()}`);
   },
 
@@ -138,5 +140,19 @@ const API = {
 
   async getAdminStats() {
     return request('/admin/stats');
+  },
+
+  async forgotPassword(email) {
+    return request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  },
+
+  async resetPassword(token, newPassword) {
+    return request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword })
+    });
   }
 };

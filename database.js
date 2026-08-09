@@ -7,8 +7,8 @@ if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
 }
 
 const supabase = createClient(
-  process.env.SUPABASE_URL || 'https://placeholder.supabase.co',
-  process.env.SUPABASE_SECRET_KEY || 'placeholder-key',
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
   {
     auth: {
       autoRefreshToken: false,

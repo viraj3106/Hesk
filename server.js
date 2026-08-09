@@ -108,6 +108,131 @@ app.post('/auth/login', async (req, res) => {
   }
 });
 
+// POST /auth/forgot-password
+app.post('/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email address' });
+  }
+
+  const genericResponse = {
+    success: true,
+    message: 'If an account exists, password reset instructions have been sent.'
+  };
+
+  try {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (user) {
+      const crypto = require('crypto');
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+
+      const { error: insertError } = await supabase
+        .from('password_reset_tokens')
+        .insert([{
+          user_id: user.id,
+          token_hash: tokenHash,
+          expires_at: expiresAt,
+          used: false
+        }]);
+
+      if (insertError) {
+        return res.status(500).json({ error: insertError.message });
+      }
+
+      console.log(`[DEV ONLY] Password reset token for ${email}: ${token}`);
+
+      const fs = require('fs');
+      try {
+        fs.writeFileSync('reset_token_dev.json', JSON.stringify({ email, token }));
+      } catch (err) {
+        console.error('Failed to write dev reset token file:', err.message);
+      }
+    }
+
+    return res.json(genericResponse);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /auth/reset-password
+app.post('/auth/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Token and newPassword are required' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const { data: resetTokenRecord, error: fetchError } = await supabase
+      .from('password_reset_tokens')
+      .select('*')
+      .eq('token_hash', tokenHash)
+      .eq('used', false)
+      .maybeSingle();
+
+    if (fetchError) {
+      return res.status(500).json({ error: fetchError.message });
+    }
+    if (!resetTokenRecord) {
+      return res.status(400).json({ error: 'Invalid or already used reset token' });
+    }
+
+    const expiresAt = new Date(resetTokenRecord.expires_at);
+    if (expiresAt < new Date()) {
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    const salt = bcrypt.genSaltSync(10);
+    const passwordHash = bcrypt.hashSync(newPassword, salt);
+
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update({ password_hash: passwordHash })
+      .eq('id', resetTokenRecord.user_id);
+
+    if (userUpdateError) {
+      return res.status(500).json({ error: userUpdateError.message });
+    }
+
+    const { error: tokenUpdateError } = await supabase
+      .from('password_reset_tokens')
+      .update({ used: true })
+      .eq('id', resetTokenRecord.id);
+
+    if (tokenUpdateError) {
+      return res.status(500).json({ error: tokenUpdateError.message });
+    }
+
+    const fs = require('fs');
+    try {
+      if (fs.existsSync('reset_token_dev.json')) {
+        fs.unlinkSync('reset_token_dev.json');
+      }
+    } catch (err) {}
+
+    res.json({ success: true, message: 'Password has been reset successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Helper for validating tickets
 async function getTicketOr404(req, res, id) {
   const { data: ticket, error } = await supabase
@@ -436,34 +561,63 @@ app.patch('/tickets/:id/reopen', authenticateJWT, requireRole(['customer']), asy
 // GET /admin/tickets — Paginated list of all tickets
 app.get('/admin/tickets', authenticateJWT, requireRole(['admin']), async (req, res) => {
   const statusFilter = req.query.status;
+  const priorityFilter = req.query.priority;
+  const agentFilter = req.query.assigned_agent_id;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
   const offset = (page - 1) * limit;
 
   try {
-    let sql = `
-      SELECT t.*, c.email as customer_email, a.email as agent_email 
-      FROM tickets t 
-      LEFT JOIN users c ON t.customer_id = c.id 
-      LEFT JOIN users a ON t.assigned_agent_id = a.id
-    `;
-    let countSql = 'SELECT COUNT(*) as total FROM tickets';
-    let params = [];
+    let query = supabase
+      .from('tickets')
+      .select('*, customer:customer_id (name, email), agent:assigned_agent_id (name, email)', { count: 'exact' });
 
     if (statusFilter) {
-      sql += ' WHERE t.status = ?';
-      countSql += ' WHERE status = ?';
-      params.push(statusFilter);
+      query = query.eq('status', statusFilter);
+    }
+    if (priorityFilter) {
+      query = query.eq('priority', priorityFilter);
+    }
+    if (agentFilter) {
+      if (agentFilter === 'unassigned') {
+        query = query.is('assigned_agent_id', null);
+      } else {
+        query = query.eq('assigned_agent_id', agentFilter);
+      }
     }
 
-    sql += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
-    const queryParams = [...params, limit, offset];
+    query = query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
-    const totalRow = await dbGet(countSql, params);
-    const total = totalRow ? totalRow.total : 0;
-    const data = await dbAll(sql, queryParams);
+    const { data: tickets, count, error } = await query;
 
-    res.json({ data, page, limit, total });
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const formattedTickets = (tickets || []).map(t => ({
+      id: t.id,
+      title: t.title,
+      category: t.category,
+      priority: t.priority,
+      status: t.status,
+      customer_id: t.customer_id,
+      customer_name: t.customer ? t.customer.name : null,
+      customer_email: t.customer ? t.customer.email : null,
+      assigned_agent_id: t.assigned_agent_id,
+      agent_name: t.agent ? t.agent.name : null,
+      agent_email: t.agent ? t.agent.email : null,
+      created_at: t.created_at,
+      updated_at: t.updated_at
+    }));
+
+    res.json({
+      data: formattedTickets,
+      page,
+      limit,
+      total: count || 0
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -472,14 +626,41 @@ app.get('/admin/tickets', authenticateJWT, requireRole(['admin']), async (req, r
 // GET /admin/agents — Agents list with ticket counts for workload view
 app.get('/admin/agents', authenticateJWT, requireRole(['admin']), async (req, res) => {
   try {
-    const agents = await dbAll(`
-      SELECT u.id, u.email, COUNT(t.id) as ticket_count 
-      FROM users u 
-      LEFT JOIN tickets t ON u.id = t.assigned_agent_id AND t.status != 'closed'
-      WHERE u.role = 'agent' 
-      GROUP BY u.id, u.email
-    `);
-    res.json(agents);
+    const { data: agents, error: agentsError } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('role', 'agent');
+
+    if (agentsError) {
+      return res.status(500).json({ error: agentsError.message });
+    }
+
+    const { data: tickets, error: ticketsError } = await supabase
+      .from('tickets')
+      .select('assigned_agent_id')
+      .in('status', ['assigned', 'in_progress']);
+
+    if (ticketsError) {
+      return res.status(500).json({ error: ticketsError.message });
+    }
+
+    const countsMap = {};
+    (tickets || []).forEach(t => {
+      if (t.assigned_agent_id) {
+        countsMap[t.assigned_agent_id] = (countsMap[t.assigned_agent_id] || 0) + 1;
+      }
+    });
+
+    const result = (agents || []).map(agent => ({
+      id: agent.id,
+      name: agent.name,
+      email: agent.email,
+      active_ticket_count: countsMap[agent.id] || 0
+    }));
+
+    result.sort((a, b) => b.active_ticket_count - a.active_ticket_count);
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -488,26 +669,40 @@ app.get('/admin/agents', authenticateJWT, requireRole(['admin']), async (req, re
 // GET /admin/stats — Overall ticket statistics
 app.get('/admin/stats', authenticateJWT, requireRole(['admin']), async (req, res) => {
   try {
-    const totalRow = await dbGet('SELECT COUNT(*) as total FROM tickets');
-    const openRow = await dbGet("SELECT COUNT(*) as open FROM tickets WHERE status != 'closed' AND status != 'resolved'");
-    const closedRow = await dbGet("SELECT COUNT(*) as closed FROM tickets WHERE status = 'closed' OR status = 'resolved'");
-    
-    // Average resolution days: difference between updated_at and created_at for resolved/closed tickets
-    // In SQLite: AVG(julianday(updated_at) - julianday(created_at))
-    const avgRow = await dbGet(`
-      SELECT AVG(julianday(updated_at) - julianday(created_at)) as avg_res 
-      FROM tickets 
-      WHERE status IN ('resolved', 'closed')
-    `);
+    const { data: tickets, error } = await supabase
+      .from('tickets')
+      .select('status, created_at, updated_at');
 
-    const total = totalRow ? totalRow.total : 0;
-    const open = openRow ? openRow.open : 0;
-    const closed = closedRow ? closedRow.closed : 0;
-    const avg_resolution_days = (avgRow && avgRow.avg_res) ? parseFloat(avgRow.avg_res.toFixed(2)) : 0;
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const total = tickets.length;
+    const open = tickets.filter(t => t.status === 'open').length;
+    const assigned = tickets.filter(t => t.status === 'assigned').length;
+    const in_progress = tickets.filter(t => t.status === 'in_progress').length;
+    const resolved = tickets.filter(t => t.status === 'resolved').length;
+    const closed = tickets.filter(t => t.status === 'closed').length;
+
+    const resolvedClosedTickets = tickets.filter(t => ['resolved', 'closed'].includes(t.status));
+    let avg_resolution_days = 0;
+    if (resolvedClosedTickets.length > 0) {
+      const totalDays = resolvedClosedTickets.reduce((sum, t) => {
+        const created = new Date(t.created_at);
+        const updated = new Date(t.updated_at);
+        const diffMs = updated - created;
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        return sum + Math.max(0, diffDays);
+      }, 0);
+      avg_resolution_days = parseFloat((totalDays / resolvedClosedTickets.length).toFixed(2));
+    }
 
     res.json({
       total,
       open,
+      assigned,
+      in_progress,
+      resolved,
       closed,
       avg_resolution_days
     });

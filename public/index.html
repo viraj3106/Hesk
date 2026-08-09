@@ -26,6 +26,9 @@
           <div class="form-group">
             <label for="loginPassword">Password</label>
             <input type="password" id="loginPassword" placeholder="••••••••" required>
+            <div style="text-align: right; margin-top: 0.5rem;">
+              <a href="#" id="showForgot" style="font-size: 0.85rem; color: var(--accent-primary); text-decoration: none;">Forgot Password?</a>
+            </div>
           </div>
           
           <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Sign In</button>
@@ -72,6 +75,52 @@
         </p>
       </div>
       
+      <div id="forgotPasswordSection" style="display: none;">
+        <h2>Forgot Password</h2>
+        <p>Enter your email to request a reset token</p>
+        
+        <form id="forgotForm">
+          <div class="form-group">
+            <label for="forgotEmail">Email Address</label>
+            <input type="email" id="forgotEmail" placeholder="you@example.com" required>
+          </div>
+          
+          <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Request Reset Token</button>
+        </form>
+        
+        <p style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
+          Remembered your password? <a href="#" id="showLoginFromForgot" style="color: var(--accent-primary); text-decoration: none; font-weight: 600;">Sign in</a>
+        </p>
+      </div>
+
+      <div id="resetPasswordSection" style="display: none;">
+        <h2>Reset Password</h2>
+        <p>Enter the reset token and your new password</p>
+        
+        <form id="resetForm">
+          <div class="form-group">
+            <label for="resetToken">Reset Token</label>
+            <input type="text" id="resetToken" placeholder="Enter token" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="resetPassword">New Password</label>
+            <input type="password" id="resetPassword" placeholder="••••••••" required>
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword">Confirm Password</label>
+            <input type="password" id="confirmPassword" placeholder="••••••••" required>
+          </div>
+          
+          <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Reset Password</button>
+        </form>
+        
+        <p style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
+          Back to <a href="#" id="showLoginFromReset" style="color: var(--accent-primary); text-decoration: none; font-weight: 600;">Sign in</a>
+        </p>
+      </div>
+      
       <div id="authError" style="margin-top: 1rem; color: #ef4444; font-size: 0.9rem; text-align: center; display: none;"></div>
     </div>
   </div>
@@ -94,18 +143,50 @@
     const showLogin = document.getElementById('showLogin');
     const loginSection = document.getElementById('loginFormSection');
     const signupSection = document.getElementById('signupFormSection');
+    const forgotSection = document.getElementById('forgotPasswordSection');
+    const resetSection = document.getElementById('resetPasswordSection');
+    const showForgot = document.getElementById('showForgot');
+    const showLoginFromForgot = document.getElementById('showLoginFromForgot');
+    const showLoginFromReset = document.getElementById('showLoginFromReset');
     const authError = document.getElementById('authError');
 
     showSignup.addEventListener('click', (e) => {
       e.preventDefault();
       loginSection.style.display = 'none';
       signupSection.style.display = 'block';
+      forgotSection.style.display = 'none';
+      resetSection.style.display = 'none';
       authError.style.display = 'none';
     });
 
     showLogin.addEventListener('click', (e) => {
       e.preventDefault();
       signupSection.style.display = 'none';
+      loginSection.style.display = 'block';
+      forgotSection.style.display = 'none';
+      resetSection.style.display = 'none';
+      authError.style.display = 'none';
+    });
+
+    showForgot.addEventListener('click', (e) => {
+      e.preventDefault();
+      loginSection.style.display = 'none';
+      signupSection.style.display = 'none';
+      forgotSection.style.display = 'block';
+      resetSection.style.display = 'none';
+      authError.style.display = 'none';
+    });
+
+    showLoginFromForgot.addEventListener('click', (e) => {
+      e.preventDefault();
+      forgotSection.style.display = 'none';
+      loginSection.style.display = 'block';
+      authError.style.display = 'none';
+    });
+
+    showLoginFromReset.addEventListener('click', (e) => {
+      e.preventDefault();
+      resetSection.style.display = 'none';
       loginSection.style.display = 'block';
       authError.style.display = 'none';
     });
@@ -136,6 +217,47 @@
       try {
         const data = await API.signup(name, email, password, role);
         redirectUser(data.user.role);
+      } catch (err) {
+        authError.textContent = err.message;
+        authError.style.display = 'block';
+      }
+    });
+
+    document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      authError.style.display = 'none';
+      const email = document.getElementById('forgotEmail').value;
+
+      try {
+        const data = await API.forgotPassword(email);
+        document.getElementById('resetToken').value = data.token || '';
+        forgotSection.style.display = 'none';
+        resetSection.style.display = 'block';
+        alert('Reset token generated. For testing/demo convenience, the token has been prefilled.');
+      } catch (err) {
+        authError.textContent = err.message;
+        authError.style.display = 'block';
+      }
+    });
+
+    document.getElementById('resetForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      authError.style.display = 'none';
+      const token = document.getElementById('resetToken').value;
+      const newPassword = document.getElementById('resetPassword').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+
+      if (newPassword !== confirmPassword) {
+        authError.textContent = 'Passwords do not match';
+        authError.style.display = 'block';
+        return;
+      }
+
+      try {
+        await API.resetPassword(token, newPassword);
+        resetSection.style.display = 'none';
+        loginSection.style.display = 'block';
+        alert('Password reset successfully. Please sign in with your new password.');
       } catch (err) {
         authError.textContent = err.message;
         authError.style.display = 'block';
