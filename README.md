@@ -2,7 +2,7 @@
 
 > Every issue deserves an owner. Every conversation deserves a history. Every resolution deserves a closed loop.
 
-**ResolveDesk** is a clean, role-based customer support and ticket resolution platform designed to streamline issue tracking, assignment, communication, and resolution. Built as a fully-featured Node.js and Express backend backed by Supabase (Postgres) and a lightweight vanilla JS/CSS frontend, it ensures that no customer request gets lost in the noise.
+**ResolveDesk** is a clean, role-based customer support and ticket resolution platform designed to streamline issue tracking, assignment, communication, and resolution. Built as a fully-featured **Java Spring Boot backend** backed by Supabase (Postgres) and a lightweight vanilla JS/CSS frontend, it ensures that no customer request gets lost in the noise.
 
 ---
 
@@ -65,11 +65,11 @@ flowchart TD
 
 ResolveDesk is built with a lightweight, high-performance tech stack focused on reliability and real-world scalability:
 
-- **Backend:** Node.js & Express
-- **Database:** Supabase (PostgreSQL)
-- **Security & Auth:** JSON Web Tokens (JWT) & bcryptjs password hashing
+- **Backend:** Java Spring Boot (v2.7.18, Java 8 compatible)
+- **Database Client:** Supabase REST Client utilizing Apache HttpClient for PATCH requests
+- **Security & Auth:** JSON Web Tokens (JWT) & `jbcrypt` password hashing
 - **Frontend:** Vanilla HTML5, CSS3 (Modern dark-themed system), and ES6 JavaScript
-- **API Styling:** RESTful JSON endpoints with Role-Based Access Control (RBAC) middleware
+- **API Architecture:** RESTful JSON endpoints with custom RBAC filter interceptors
 
 ---
 
@@ -77,9 +77,14 @@ ResolveDesk is built with a lightweight, high-performance tech stack focused on 
 
 Here's a quick map of the repository's layout:
 
-- `server.js` — The core Express application containing the RBAC logic, state machine, analytics aggregators, and authentication controllers.
-- `database.js` — Supabase client configuration and initialization.
-- [middleware/](file:///v:/capstone%20prj/middleware/) — Custom middleware including [auth.js](file:///v:/capstone%20prj/middleware/auth.js) for JWT validation and role requirements.
+- [pom.xml](file:///v:/capstone%20prj/pom.xml) — The Maven project dependencies and build configuration.
+- [src/main/java/com/helpdesk/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/) — The core Spring Boot application codebase:
+  - [HelpdeskApplication.java](file:///v:/capstone%20prj/src/main/java/com/helpdesk/HelpdeskApplication.java) — Main application entry point.
+  - [config/WebConfig.java](file:///v:/capstone%20prj/src/main/java/com/helpdesk/config/WebConfig.java) — CORS registry and static resource handlers pointing to frontend.
+  - [security/JwtInterceptor.java](file:///v:/capstone%20prj/src/main/java/com/helpdesk/security/JwtInterceptor.java) — Security intercepter implementing RBAC and JWT validation.
+  - [service/SupabaseService.java](file:///v:/capstone%20prj/src/main/java/com/helpdesk/service/SupabaseService.java) — PostgREST service layer communicating with Supabase over HTTP.
+  - [controller/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/controller/) — REST Endpoints: AuthController, TicketController, AdminController.
+- [server.js](file:///v:/capstone%20prj/server.js) — Lightweight reverse proxy to forward traffic from Node-based ports to the Java Spring Boot port.
 - [public/](file:///v:/capstone%20prj/public/) — Frontend client codebase.
   - [index.html](file:///v:/capstone%20prj/public/index.html) — Portal login and sign-up interface.
   - [customer-dashboard.html](file:///v:/capstone%20prj/public/customer-dashboard.html) — Ticket creation and personal list view.
@@ -88,8 +93,6 @@ Here's a quick map of the repository's layout:
   - [ticket-detail.html](file:///v:/capstone%20prj/public/ticket-detail.html) — The interactive communication hub for any single ticket.
   - [api.js](file:///v:/capstone%20prj/public/api.js) — Shared fetch-based abstraction layer mapping to backend endpoints.
   - [style.css](file:///v:/capstone%20prj/public/style.css) — Custom responsive styling framework.
-- [scripts/](file:///v:/capstone%20prj/scripts/) — Command-line database tools.
-  - [seed-admin.js](file:///v:/capstone%20prj/scripts/seed-admin.js) — CLI utility to initialize the system admin user.
 
 ---
 
@@ -146,15 +149,8 @@ Manages secure OTP (One-Time Password) reset sessions.
 
 Follow these steps to spin up the project locally:
 
-### 1. Clone & Install Dependencies
-```bash
-git clone <your-repo-url>
-cd resolvedesk
-npm install
-```
-
-### 2. Configure Environment Variables
-Create a `.env` file in the root directory:
+### 1. Configure Environment Variables
+Ensure the following variables are set in your environment (or defined in a `.env` file in the root directory for Node proxy settings):
 ```env
 PORT=3000
 JWT_SECRET=your_jwt_secret_key_here
@@ -162,15 +158,22 @@ SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_SECRET_KEY=your-supabase-service-role-or-secret-key
 ```
 
-### 3. Seed the System Admin
-Before logging in as an administrator, seed the initial database user:
+### 2. Compile & Run the Spring Boot Server
+You can run Spring Boot using your local Java SDK environment.
+In the project directory, run:
 ```bash
-node scripts/seed-admin.js
-```
-*Note: This creates a default admin user `admin@helpdesk.com` with the password `Admin123!` (or the password configured in `ADMIN_PASSWORD` in your `.env` file).*
+# Set JAVA_HOME to a valid JDK (JDK 8 or newer)
+set JAVA_HOME=C:\Path\To\Your\JDK
 
-### 4. Start the Application
+# Compile and start the Spring Boot server (runs on port 8080 by default)
+.\apache-maven-3.8.6\bin\mvn clean spring-boot:run
+```
+
+### 3. Start the Proxy Server (Optional)
+If you wish to serve the application on the original Node.js port (`3000`), you can launch the lightweight Express proxy:
 ```bash
+npm install
 npm start
 ```
-Open your browser and navigate to `http://localhost:3000` to start using ResolveDesk!
+
+Open your browser and navigate to `http://localhost:8080` (or `http://localhost:3000` if using the proxy) to start using ResolveDesk!
