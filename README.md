@@ -100,6 +100,60 @@ Here's a quick map of the repository's layout:
 
 The platform relies on four core tables in Supabase Postgres:
 
+```mermaid
+erDiagram
+    users {
+        int8 id PK
+        varchar name
+        varchar email
+        text password_hash
+        varchar role
+        timestamptz created_at
+    }
+
+    tickets {
+        int8 id PK
+        int8 customer_id FK
+        varchar title
+        varchar category
+        varchar priority
+        text description
+        varchar status
+        int8 assigned_agent_id FK
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz resolved_at
+    }
+
+    responses {
+        int8 id PK
+        int8 ticket_id FK
+        int8 sender_id FK
+        text message
+        timestamptz created_at
+    }
+
+    password_reset_tokens {
+        int8 id PK
+        int8 user_id FK
+        text otp_hash
+        timestamptz expires_at
+        int4 attempts
+        bool verified
+        bool used
+        text reset_token_hash
+        timestamptz reset_expires_at
+        timestamptz created_at
+    }
+
+    users ||--o{ tickets : "creates (customer_id)"
+    users ||--o{ tickets : "handles (assigned_agent_id)"
+    users ||--o{ responses : "sends (sender_id)"
+    users ||--o{ password_reset_tokens : "requests (user_id)"
+    tickets ||--o{ responses : "contains (ticket_id)"
+```
+
+
 ### 1. `users`
 Tracks system identities and permissions.
 - `id` (bigint/serial, Primary Key)
