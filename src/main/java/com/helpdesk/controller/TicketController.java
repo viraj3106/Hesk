@@ -68,6 +68,12 @@ public class TicketController {
         if (ticket == null) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("error", "Failed to create ticket"));
         }
+        
+        try {
+            Long ticketId = ((Number) ticket.get("id")).longValue();
+            recordStatusHistory(ticketId, null, "open", customerId);
+        } catch (Exception ignored) {}
+        
         return ResponseEntity.status(HttpStatus.CREATED).body(ticket);
     }
 
@@ -263,6 +269,8 @@ public class TicketController {
         Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
         supabaseService.update("tickets", updatePayload, ticketFilter);
 
+        recordStatusHistory(id, currentStatus, status, userId);
+
         return ResponseEntity.ok(Collections.singletonMap("message", "Status updated to " + status));
     }
 
@@ -294,6 +302,8 @@ public class TicketController {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid agent ID"));
         }
 
+        String currentStatus = (String) ticket.get("status");
+
         Map<String, Object> updatePayload = new HashMap<>();
         updatePayload.put("assigned_agent_id", agentId);
         updatePayload.put("status", "assigned");
@@ -302,6 +312,8 @@ public class TicketController {
 
         Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
         supabaseService.update("tickets", updatePayload, ticketFilter);
+
+        recordStatusHistory(id, currentStatus, "assigned", ((Number) user.get("id")).longValue());
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Ticket assigned successfully");
@@ -313,6 +325,62 @@ public class TicketController {
 
     @PatchMapping("/{id}/reopen")
     public ResponseEntity<Map<String, Object>> reopenTicket(
+            @RequestAttribute("user") Map<String, Object> user,
+            @PathVariable("id") Long id,
+            @RequestBody Map<String, String> body) {
+        
+        String role = (String) user.get("role");
+        if (!"customer".equals(role)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: insufficient permissions"));
+        }
+
+        String reason = body != null ? body.get("reason") : null;
+        if (reason == null || reason.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Reopen reason is required"));
+        }
+
+        ResponseEntity<?>[] errorHolder = new ResponseEntity<?>[1];
+        Map<String, Object> ticket = getTicketOr404(id, errorHolder);
+        if (ticket == null) return (ResponseEntity<Map<String, Object>>) errorHolder[0];
+
+        Long userId = ((Number) user.get("id")).longValue();
+        Long ticketCustomerId = ((Number) ticket.get("customer_id")).longValue();
+
+        if (!userId.equals(ticketCustomerId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not your ticket"));
+        }
+
+        String currentStatus = (String) ticket.get("status");
+        if (!Arrays.asList("resolved", "closed").contains(currentStatus)) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Only resolved or closed tickets can be reopened"));
+        }
+
+        Map<String, Object> updatePayload = new HashMap<>();
+        updatePayload.put("status", "in_progress");
+        updatePayload.put("resolved_at", null);
+        updatePayload.put("updated_at", Instant.now().toString());
+
+        Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
+        supabaseService.update("tickets", updatePayload, ticketFilter);
+
+        // Insert thread comment
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("ticket_id", id);
+        responseData.put("sender_id", userId);
+        responseData.put("message", "Reopened: " + reason.trim());
+        supabaseService.insert("responses", responseData);
+
+        recordStatusHistory(id, currentStatus, "in_progress", userId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Ticket reopened successfully");
+        response.put("status", "in_progress");
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/close")
+    public ResponseEntity<Map<String, Object>> closeTicket(
             @RequestAttribute("user") Map<String, Object> user,
             @PathVariable("id") Long id) {
         
@@ -332,30 +400,37 @@ public class TicketController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not your ticket"));
         }
 
-        String status = (String) ticket.get("status");
-        if (!Arrays.asList("resolved", "closed").contains(status)) {
-            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Only resolved or closed tickets can be reopened"));
+        String currentStatus = (String) ticket.get("status");
+        if (!"resolved".equals(currentStatus)) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Only resolved tickets can be closed"));
         }
 
         Map<String, Object> updatePayload = new HashMap<>();
-        updatePayload.put("status", "in_progress");
-        updatePayload.put("resolved_at", null);
+        updatePayload.put("status", "closed");
         updatePayload.put("updated_at", Instant.now().toString());
 
         Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
         supabaseService.update("tickets", updatePayload, ticketFilter);
 
-        // Insert thread comment
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("ticket_id", id);
-        responseData.put("sender_id", userId);
-        responseData.put("message", "Customer reopened this ticket because the issue was not resolved.");
-        supabaseService.insert("responses", responseData);
+        recordStatusHistory(id, currentStatus, "closed", userId);
 
         Map<String, Object> response = new HashMap<>();
-        response.put("message", "Ticket reopened successfully");
-        response.put("status", "in_progress");
+        response.put("message", "Ticket closed successfully");
+        response.put("status", "closed");
 
         return ResponseEntity.ok(response);
+    }
+
+    private void recordStatusHistory(Long ticketId, String oldStatus, String newStatus, Long userId) {
+        try {
+            Map<String, Object> historyData = new HashMap<>();
+            historyData.put("ticket_id", ticketId);
+            historyData.put("old_status", oldStatus);
+            historyData.put("new_status", newStatus);
+            historyData.put("changed_by", userId);
+            supabaseService.insert("ticket_status_history", historyData);
+        } catch (Exception e) {
+            System.err.println("Warning: failed to record status history: " + e.getMessage());
+        }
     }
 }

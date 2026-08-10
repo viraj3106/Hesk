@@ -114,8 +114,15 @@ const API = {
     });
   },
 
-  async reopenTicket(id) {
+  async reopenTicket(id, reason) {
     return request(`/tickets/${id}/reopen`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason })
+    });
+  },
+
+  async closeTicket(id) {
+    return request(`/tickets/${id}/close`, {
       method: 'PATCH'
     });
   },
@@ -164,12 +171,6 @@ const API = {
     return request('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ resetToken, newPassword })
-    });
-  },
-
-  async reopenTicket(ticketId) {
-    return request(`/tickets/${ticketId}/reopen`, {
-      method: 'PATCH'
     });
   }
 };
