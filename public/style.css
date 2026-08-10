@@ -2,25 +2,27 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-primary: #0b0f19;
-  --bg-secondary: #131a2e;
-  --bg-tertiary: #1e2942;
-  --accent-primary: #6366f1;
-  --accent-hover: #4f46e5;
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
-  --border-color: #374151;
+  --bg-primary: #12100e;
+  --bg-secondary: #1a1715;
+  --bg-tertiary: #26211e;
+  --accent-primary: #f97316;
+  --accent-hover: #ea580c;
+  --accent-gold: #eab308;
+  --accent-gradient: linear-gradient(135deg, #f97316 0%, #eab308 100%);
+  --text-primary: #f5f5f4;
+  --text-secondary: #d6d3d1;
+  --text-muted: #878580;
+  --border-color: #3b3633;
   
-  --status-open: #f59e0b;
+  --status-open: #f97316;
   --status-assigned: #3b82f6;
-  --status-in-progress: #8b5cf6;
+  --status-in-progress: #eab308;
   --status-resolved: #10b981;
-  --status-closed: #6b7280;
+  --status-closed: #78716c;
   
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --glass-bg: rgba(19, 26, 46, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(26, 23, 21, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.04);
 }
 
 * {
@@ -60,10 +62,19 @@ h1, h2, h3, h4 {
 
 .logo {
   font-size: 1.5rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  letter-spacing: -0.03em;
+}
+
+.logo svg {
+  stroke: url(#logo-grad);
+  fill: none;
 }
 
 .user-nav {
