@@ -1,29 +1,25 @@
 # ResolveDesk 🎫
 
-> Every issue deserves an owner. Every conversation deserves a history. Every resolution deserves a closed loop.
+Hey 👋 Welcome to **ResolveDesk**! Every issue deserves an owner, every conversation deserves a history, and every resolution deserves a closed loop. 
 
-**ResolveDesk** is a clean, role-based customer support and ticket resolution platform designed to streamline issue tracking, assignment, communication, and resolution. Built as a fully-featured **Java Spring Boot backend** backed by Supabase (Postgres) and a lightweight vanilla JS/CSS frontend, it ensures that no customer request gets lost in the noise.
+**ResolveDesk** is a clean, role-based customer support and ticketing platform designed to streamline issue tracking, assignment, communication, and resolution. Built with a high-performance **Java Spring Boot** backend communicating with **Supabase (Postgres)** via REST, and a sleek, modern **Vanilla JS & CSS** frontend, ResolveDesk is built for speed, safety, and reliability.
 
 ---
 
-## 👋 Why ResolveDesk?
+## 🔍 The Problem
+Imagine a customer reports a critical bug. Someone says they'll "look into it." A few days pass, and nobody remembers who took ownership, what details were discussed, or whether the problem was actually fixed. Meanwhile, the customer is left in the dark, leading to a loss of trust.
 
-Imagine a customer reports a critical bug. Someone says they'll "look into it." A few days pass, and nobody remembers who took ownership, what details were discussed, or whether the problem was actually fixed. Meanwhile, the customer is left in the dark.
-
-**ResolveDesk fixes this.** It eliminates the ambiguity of ticket ownership and status by transforming every support request into a structured ticket.
-
-Every ticket on ResolveDesk is tracked with:
+## 💡 The Idea
+We wanted to eliminate the ambiguity of support workflows. Every support request is turned into a structured ticket with:
 - 👤 **Clear ownership:** Automatically mapped to the submitting customer and assigned agent.
-- 🏷️ **Categorization & Priority:** Categorized by topic and flagged with a priority level (`low`, `medium`, `high`) to manage SLAs.
-- 🔄 **Strict State Transitions:** A legal state machine ensures tickets progress systematically (from open to assigned, to in-progress, to resolved, and finally closed).
+- 🏷️ **Categorization & Priority:** SLA targets managed via priority levels (`low`, `medium`, `high`).
+- 🔄 **Strict State Transitions:** A legal state machine validated on the server.
 - 💬 **A Living Thread:** A chronological, real-time message stream between the customer and the assigned agent.
-- 🔁 **Resolution History:** Reopening rules allow customers to kick a ticket back to `in_progress` if they aren't satisfied with the solution, complete with automated thread logs.
 
 ---
 
-## 🎯 What does ResolveDesk do?
-
-ResolveDesk organizes the entire support lifecycle into three key roles:
+## 🚀 How It Works
+The support ticket lifecycle follows a strict transition flow validated on the server. If a ticket tries to jump steps or change without an assigned agent, the API rejects it.
 
 ```
 [ Customer ] ──( Creates ticket )──► [ Admin ] ──( Assigns Agent )──► [ Agent ]
@@ -32,15 +28,46 @@ ResolveDesk organizes the entire support lifecycle into three key roles:
 [ Customer ] ◄──( Reviews & Closes/Reopens )── [ Agent ] ◄──( Works & Responds )
 ```
 
-- **Customers:** Register, submit tickets, converse directly with agents in their dedicated ticket thread, and close or reopen tickets based on satisfaction.
-- **Agents:** Access a paginated queue of assigned tickets, update statuses, converse with customers, and mark issues as resolved.
-- **Admins:** View overall system analytics (average resolution time, workload breakdown, priority counts), monitor the master ticket stream, and assign unassigned tickets to agents based on workload.
+---
+
+## 👥 User Roles & Permissions
+
+- **Customers:**
+  - Create and view their own tickets.
+  - Chat in their ticket message threads.
+  - Accept resolutions (marks ticket as `CLOSED`) or Reopen tickets (marks ticket as `IN_PROGRESS` with a required reason comment).
+- **Agents:**
+  - View their assigned tickets queue.
+  - Send replies in ticket threads.
+  - Transition tickets from `assigned` ➔ `in_progress` ➔ `resolved`.
+- **Admins:**
+  - View all tickets in the system.
+  - Assign or reassign tickets to agents.
+  - Monitor workload metrics and analytics.
 
 ---
 
-## 🔄 How the system works
+## 🛠️ Key Features
+- **OTP Password Reset:** Supports secure verification code flows for users who forgot their passwords.
+- **Glassmorphic Resolution Modal:** Prompting customers to supply a non-empty reason when reopening tickets.
+- **State History Tracking:** Automatically records transitions in a `ticket_status_history` table.
+- **Role-Based Access Control (RBAC):** Strict JWT verification and role validation interceptor on the backend.
 
-The ticket lifecycle follows a strict transition flow validated on the server. If a ticket tries to jump steps or change without an assigned agent, the API rejects it.
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    A[Frontend: HTML/CSS/Vanilla JS] -->|HTTPS Requests| B[Express Reverse Proxy: Port 3000]
+    B -->|Proxies APIs| C[Spring Boot Backend: Port 8080]
+    C -->|JWT Interceptor / Security| D[Business Logic & Controllers]
+    D -->|PostgREST HTTP Requests| E[Supabase / Postgres Database]
+```
+
+---
+
+## 🔄 Workflow Diagram
 
 ```mermaid
 flowchart TD
@@ -48,57 +75,22 @@ flowchart TD
     B -->|Admin Assigns Agent| C(Assigned)
     C -->|Agent Starts Work| D(In Progress)
     D -->|Agent Resolves Ticket| E(Resolved)
-    E -->|Customer Satisfied? Yes| F(Closed)
-    E -->|Customer Reopens Ticket| D
-    F -->|Customer Reopens Ticket| D
+    E -->|Customer Accepts| F(Closed)
+    E -->|Customer Reopens| D
+    F -->|Customer Reopens| D
 
-    style B fill:#f9f,stroke:#333,stroke-width:2px
-    style C fill:#bbf,stroke:#333,stroke-width:2px
-    style D fill:#fbf,stroke:#333,stroke-width:2px
-    style E fill:#bfb,stroke:#333,stroke-width:2px
-    style F fill:#ddd,stroke:#333,stroke-width:2px
+    style B fill:#f97316,stroke:#333,stroke-width:2px
+    style C fill:#3b82f6,stroke:#333,stroke-width:2px
+    style D fill:#eab308,stroke:#333,stroke-width:2px
+    style E fill:#10b981,stroke:#333,stroke-width:2px
+    style F fill:#78716c,stroke:#333,stroke-width:2px
 ```
 
 ---
 
-## 🛠️ The Tech Stack
+## 💾 Database Structure
 
-ResolveDesk is built with a lightweight, high-performance tech stack focused on reliability and real-world scalability:
-
-- **Backend:** Java Spring Boot (v2.7.18, Java 8 compatible)
-- **Database Client:** Supabase REST Client utilizing Apache HttpClient for PATCH requests
-- **Security & Auth:** JSON Web Tokens (JWT) & `jbcrypt` password hashing
-- **Frontend:** Vanilla HTML5, CSS3 (Modern dark-themed system), and ES6 JavaScript
-- **API Architecture:** RESTful JSON endpoints with custom RBAC filter interceptors
-
----
-
-## 📂 Project Architecture
-
-Here's a quick map of the repository's layout:
-
-- [pom.xml](file:///v:/capstone%20prj/pom.xml) — The Maven project dependencies and build configuration.
-- [src/main/java/com/helpdesk/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/) — The core Spring Boot application codebase:
-  - [HelpdeskApplication.java](file:///v:/capstone%20prj/src/main/java/com/helpdesk/HelpdeskApplication.java) — Main application entry point.
-  - [config/WebConfig.java](file:///v:/capstone%20prj/src/main/java/com/helpdesk/config/WebConfig.java) — CORS registry and static resource handlers pointing to frontend.
-  - [security/JwtInterceptor.java](file:///v:/capstone%20prj/src/main/java/com/helpdesk/security/JwtInterceptor.java) — Security intercepter implementing RBAC and JWT validation.
-  - [service/SupabaseService.java](file:///v:/capstone%20prj/src/main/java/com/helpdesk/service/SupabaseService.java) — PostgREST service layer communicating with Supabase over HTTP.
-  - [controller/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/controller/) — REST Endpoints: AuthController, TicketController, AdminController.
-- [server.js](file:///v:/capstone%20prj/server.js) — Lightweight reverse proxy to forward traffic from Node-based ports to the Java Spring Boot port.
-- [public/](file:///v:/capstone%20prj/public/) — Frontend client codebase.
-  - [index.html](file:///v:/capstone%20prj/public/index.html) — Portal login and sign-up interface.
-  - [customer-dashboard.html](file:///v:/capstone%20prj/public/customer-dashboard.html) — Ticket creation and personal list view.
-  - [agent-queue.html](file:///v:/capstone%20prj/public/agent-queue.html) — Work queue for assigned support staff.
-  - [admin-dashboard.html](file:///v:/capstone%20prj/public/admin-dashboard.html) — Workload sorting, agent assignment, and system stats.
-  - [ticket-detail.html](file:///v:/capstone%20prj/public/ticket-detail.html) — The interactive communication hub for any single ticket.
-  - [api.js](file:///v:/capstone%20prj/public/api.js) — Shared fetch-based abstraction layer mapping to backend endpoints.
-  - [style.css](file:///v:/capstone%20prj/public/style.css) — Custom responsive styling framework.
-
----
-
-## 💾 Database Schema
-
-The platform relies on four core tables in Supabase Postgres:
+We utilize four core tables and a history table in Supabase Postgres:
 
 ```mermaid
 erDiagram
@@ -146,88 +138,110 @@ erDiagram
         timestamptz created_at
     }
 
+    ticket_status_history {
+        int8 id PK
+        int8 ticket_id FK
+        varchar old_status
+        varchar new_status
+        int8 changed_by FK
+        timestamptz created_at
+    }
+
     users ||--o{ tickets : "creates (customer_id)"
     users ||--o{ tickets : "handles (assigned_agent_id)"
     users ||--o{ responses : "sends (sender_id)"
     users ||--o{ password_reset_tokens : "requests (user_id)"
     tickets ||--o{ responses : "contains (ticket_id)"
+    tickets ||--o{ ticket_status_history : "logs history"
 ```
 
+---
 
-### 1. `users`
-Tracks system identities and permissions.
-- `id` (bigint/serial, Primary Key)
-- `name` (text)
-- `email` (text, Unique)
-- `password_hash` (text)
-- `role` (text: `'customer'`, `'agent'`, or `'admin'`)
-- `created_at` (timestamp)
+## 🔌 API Overview
 
-### 2. `tickets`
-Tracks individual tickets and their current workflow state.
-- `id` (bigint/serial, Primary Key)
-- `title` (text)
-- `category` (text)
-- `priority` (text: `'low'`, `'medium'`, or `'high'`)
-- `description` (text)
-- `status` (text: `'open'`, `'assigned'`, `'in_progress'`, `'resolved'`, or `'closed'`)
-- `customer_id` (foreign key -> `users.id`)
-- `assigned_agent_id` (foreign key -> `users.id`, nullable)
-- `created_at` (timestamp)
-- `updated_at` (timestamp)
-- `resolved_at` (timestamp, nullable)
+| Method | Endpoint | Authentication | Role Allowed | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/auth/signup` | None | Anyone | User account registration |
+| `POST` | `/auth/login` | None | Anyone | Authenticates credentials and returns JWT token |
+| `POST` | `/tickets` | JWT | `customer` | Submits a new support ticket |
+| `GET` | `/tickets/my` | JWT | `customer` | Lists all tickets owned by the current customer |
+| `GET` | `/tickets/queue` | JWT | `agent` | Paginated queue of tickets assigned to the agent |
+| `GET` | `/tickets/{id}` | JWT | Owner/Assignee/Admin | Retrieves full ticket details and thread comments |
+| `POST` | `/tickets/{id}/respond` | JWT | Owner/Assignee/Admin | Posts a comment response to the ticket thread |
+| `PATCH` | `/tickets/{id}/status` | JWT | `agent`, `admin` | Updates status (e.g. starting work or resolving) |
+| `PATCH` | `/tickets/{id}/assign` | JWT | `admin` | Assigns/Reassigns the ticket to a support agent |
+| `PATCH` | `/tickets/{id}/reopen` | JWT | `customer` (Owner) | Reopens a resolved or closed ticket (requires reason) |
+| `PATCH` | `/tickets/{id}/close` | JWT | `customer` (Owner) | Accepts resolution and closes ticket |
 
-### 3. `responses`
-Maintains the communication threads for each ticket.
-- `id` (bigint/serial, Primary Key)
-- `ticket_id` (foreign key -> `tickets.id`)
-- `sender_id` (foreign key -> `users.id`)
-- `message` (text)
-- `created_at` (timestamp)
+---
 
-### 4. `password_reset_tokens`
-Manages secure OTP (One-Time Password) reset sessions.
-- `id` (bigint/serial, Primary Key)
-- `user_id` (foreign key -> `users.id`)
-- `otp_hash` (text)
-- `expires_at` (timestamp)
-- `attempts` (integer)
-- `verified` (boolean)
-- `used` (boolean)
-- `reset_token_hash` (text, nullable)
-- `reset_expires_at` (timestamp, nullable)
+## 📂 Project Structure
+- [pom.xml](file:///v:/capstone%20prj/pom.xml) — Maven project configuration.
+- [src/main/java/com/helpdesk/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/) — Java Spring Boot backend codebase.
+  - [controller/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/controller/) — REST Endpoint controllers.
+  - [security/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/security/) — JWT Interceptor configuration and helpers.
+  - [service/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/service/) — RestTemplate-based Supabase PostgREST client service.
+- [server.js](file:///v:/capstone%20prj/server.js) — Lightweight reverse proxy to expose API and serve frontend static assets.
+- [public/](file:///v:/capstone%20prj/public/) — Frontend client codebase: HTML, API client, and CSS style tokens.
+- [test-phase9-resolution.js](file:///v:/capstone%20prj/test-phase9-resolution.js) — Phase 9 validation test suite.
+
+---
+
+## 🛡️ Security
+- **Strict JWT RBAC:** Requests to protected paths intercept tokens and reject unauthorized roles.
+- **Salting & Hashing:** Passwords hashed with `jbcrypt` (backend) and `bcryptjs` (dev tests).
+- **Secure Credentials:** All Supabase URLs and Secret Keys are loaded via environment variables and never committed.
+
+---
+
+## 🧪 Testing
+
+### Running Tests
+Execute the end-to-end resolution flow test suite:
+```bash
+node test-phase9-resolution.js
+```
 
 ---
 
 ## 🚀 Getting Started
 
-Follow these steps to spin up the project locally:
-
-### 1. Configure Environment Variables
-Ensure the following variables are set in your environment (or defined in a `.env` file in the root directory for Node proxy settings):
+### 1. Environment Configuration
+Create a `.env` file in the root folder with:
 ```env
 PORT=3000
-JWT_SECRET=your_jwt_secret_key_here
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_SECRET_KEY=your-supabase-service-role-or-secret-key
+JWT_SECRET=your_jwt_secret_key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=your-supabase-service-role-secret-key
 ```
 
-### 2. Compile & Run the Spring Boot Server
-You can run Spring Boot using your local Java SDK environment.
-In the project directory, run:
+### 2. Spring Boot Server
+Launch the Java Spring Boot backend:
 ```bash
-# Set JAVA_HOME to a valid JDK (JDK 8 or newer)
-set JAVA_HOME=C:\Path\To\Your\JDK
-
-# Compile and start the Spring Boot server (runs on port 8080 by default)
+$env:JAVA_HOME="C:\Program Files\JetBrains\IntelliJ IDEA 2026.2.0.1\jbr"
 .\apache-maven-3.8.6\bin\mvn clean spring-boot:run
 ```
 
-### 3. Start the Proxy Server (Optional)
-If you wish to serve the application on the original Node.js port (`3000`), you can launch the lightweight Express proxy:
+### 3. Node Proxy
+Run the reverse proxy:
 ```bash
 npm install
 npm start
 ```
+Navigate to `http://localhost:3000` to start using ResolveDesk!
 
-Open your browser and navigate to `http://localhost:8080` (or `http://localhost:3000` if using the proxy) to start using ResolveDesk!
+---
+
+## 📈 Future Improvements
+- **Live Ticket Updates:** Integrating WebSockets for instantaneous real-time chat threads.
+- **SLA Violation Alerts:** Automatic emails to admins when ticket resolution exceeds target windows.
+
+## 🎓 What I Learned
+- Integrating RestTemplate in Spring Boot to directly interact with Supabase PostgREST endpoints.
+- Designing strict legal state transitions in server-side controller APIs.
+
+## 📌 Project Status
+Completed & Capstone Ready.
+
+## 👤 Author
+Developed by Viraj.
