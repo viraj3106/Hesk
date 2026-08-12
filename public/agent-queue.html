@@ -8,8 +8,8 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E">
 </head>
 <body>
-  <div class="app-container">
-    <header>
+  <div class="app-container" style="padding: 1rem 1.5rem;">
+    <header style="margin-bottom: 1.5rem; padding-bottom: 1rem;">
       <div>
         <span class="logo">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -32,41 +32,67 @@
       </div>
     </header>
 
-    <!-- Stats Widgets -->
-    <div class="stats-row" style="margin-bottom: 2rem;">
-      <div class="stat-card">
-        <h3>Assigned</h3>
-        <div class="stat-number" id="statAssigned">0</div>
+    <!-- Mini Stats Row -->
+    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+      <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; font-size: 0.85rem;">
+        Assigned: <span id="statAssigned" style="color: var(--status-assigned); font-weight: 700;">0</span>
       </div>
-      <div class="stat-card">
-        <h3>In Progress</h3>
-        <div class="stat-number" id="statInProgress">0</div>
+      <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; font-size: 0.85rem;">
+        In Progress: <span id="statInProgress" style="color: var(--status-in-progress); font-weight: 700;">0</span>
       </div>
-      <div class="stat-card">
-        <h3>Resolved</h3>
-        <div class="stat-number" id="statResolved">0</div>
+      <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; font-size: 0.85rem;">
+        Resolved: <span id="statResolved" style="color: var(--status-resolved); font-weight: 700;">0</span>
       </div>
     </div>
 
-    <div>
-      <h2 style="margin-bottom: 1.5rem;">Your Assigned Tickets</h2>
-      
-      <div class="tabs">
-        <button class="tab active" onclick="filterStatus('')">All</button>
-        <button class="tab" onclick="filterStatus('assigned')">Assigned</button>
-        <button class="tab" onclick="filterStatus('in_progress')">In Progress</button>
-        <button class="tab" onclick="filterStatus('resolved')">Resolved</button>
-        <button class="tab" onclick="filterStatus('closed')">Closed</button>
+    <div class="whatsapp-layout">
+      <!-- Left Sidebar: Ticket List -->
+      <div class="whatsapp-sidebar">
+        <div class="sidebar-header">
+          <h3 style="font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            Ticket Queue
+          </h3>
+          <div class="tabs" style="gap: 8px; margin-bottom: 4px;">
+            <button class="tab active" style="font-size: 0.8rem; padding: 4px 0;" onclick="filterStatus(event, '')">All</button>
+            <button class="tab" style="font-size: 0.8rem; padding: 4px 0;" onclick="filterStatus(event, 'assigned')">Assigned</button>
+            <button class="tab" style="font-size: 0.8rem; padding: 4px 0;" onclick="filterStatus(event, 'in_progress')">Active</button>
+            <button class="tab" style="font-size: 0.8rem; padding: 4px 0;" onclick="filterStatus(event, 'resolved')">Resolved</button>
+          </div>
+          <div class="sidebar-search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="ticketSearch" placeholder="Search queue..." oninput="filterTickets()">
+          </div>
+        </div>
+        <div id="whatsappChatList" class="whatsapp-chat-list">
+          <p style="color: var(--text-secondary); padding: 20px; text-align: center;">Loading chats...</p>
+        </div>
       </div>
- 
-      <div id="ticketList" class="ticket-list">
-        <p style="color: var(--text-secondary);">Loading queue...</p>
-      </div>
- 
-      <div class="pagination">
-        <button class="btn btn-secondary" id="prevBtn" onclick="changePage(-1)">Previous</button>
-        <span id="pageInfo" style="font-size: 0.95rem; color: var(--text-secondary);">Page 1 of 1</span>
-        <button class="btn btn-secondary" id="nextBtn" onclick="changePage(1)">Next</button>
+
+      <!-- Right Panel: Conversation -->
+      <div id="whatsappContent" class="whatsapp-content">
+        <!-- Empty state placeholder (WhatsApp laptop doodle screen) -->
+        <div class="whatsapp-welcome">
+          <svg width="250" height="180" viewBox="0 0 250 180" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block; margin: 0 auto 2rem;">
+            <path d="M40 145h170v5H40z" fill="#4b6043" />
+            <path d="M20 150h210c4.4 0 8 3.6 8 8v2a2 2 0 01-2 2H34a2 2 0 01-2-2v-2c0-4.4 3.6-8 8-8z" fill="#1b2e20" stroke="#000" stroke-width="2" />
+            <path d="M110 150h30v4h-30z" fill="#4b6043" />
+            <rect x="50" y="25" width="150" height="120" rx="10" fill="#202c33" stroke="#000" stroke-width="2" />
+            <path d="M50 135h150" stroke="#000" stroke-width="1.5" />
+            <circle cx="58" cy="33" r="3" fill="#ef4444" />
+            <circle cx="68" cy="33" r="3" fill="#f59e0b" />
+            <circle cx="78" cy="33" r="3" fill="#10b981" />
+            <rect x="75" y="45" width="100" height="80" rx="8" fill="#1ebd5b" stroke="#000" stroke-width="2" />
+            <circle cx="125" cy="85" r="20" fill="#fff" stroke="#000" stroke-width="1.5" />
+            <path d="M120 80c0-.5.4-.9.9-.9h.2c1.3 0 2.5.5 3.4 1.4s1.4 2.1 1.4 3.4v.2c0 .5-.4.9-.9.9h-1.5c-.3 0-.6-.2-.8-.4l-1-1a3.6 3.6 0 01-1.3-1.3l-1-1c-.2-.2-.4-.5-.4-.8V80z" fill="#1ebd5b" />
+          </svg>
+          <h2>Welcome to ResolveDesk Agent Workspace</h2>
+          <p>Select a ticket from the left panel to review customer issues, reply, and transition ticket status. Let's make resolutions smooth!</p>
+          
+          <div class="whatsapp-welcome-footer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            End-to-end secure customer support ticketing
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -80,69 +106,237 @@
 
     document.getElementById('userEmail').textContent = session.email;
 
+    function getStatusTicks(status) {
+      if (status === 'open') {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M1.5 6.5L4.5 9.5L11.5 3" stroke="#8696a0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      } else if (status === 'assigned' || status === 'in_progress') {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M15 3L8.5 9.5L5.5 6.5M11.5 3L8.5 6M1.5 6.5L4.5 9.5" stroke="#8696a0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      } else {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M15 3L8.5 9.5L5.5 6.5M11.5 3L8.5 6M1.5 6.5L4.5 9.5" stroke="#53bdeb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      }
+    }
+
+    let allTickets = [];
+    let activeTicketId = null;
     let currentStatus = '';
-    let currentPage = 1;
-    const limit = 20;
 
     async function loadQueue() {
-      const ticketList = document.getElementById('ticketList');
+      const chatList = document.getElementById('whatsappChatList');
       try {
-        // Fetch all assigned tickets to calculate stats
         const allRes = await API.getAgentQueue('', 1, 1000);
-        const allAssigned = allRes.data || [];
-        const assignedCount = allAssigned.filter(t => t.status === 'assigned').length;
-        const inProgressCount = allAssigned.filter(t => t.status === 'in_progress').length;
-        const resolvedCount = allAssigned.filter(t => t.status === 'resolved').length;
+        allTickets = allRes.data || [];
+        
+        const assignedCount = allTickets.filter(t => t.status === 'assigned').length;
+        const inProgressCount = allTickets.filter(t => t.status === 'in_progress').length;
+        const resolvedCount = allTickets.filter(t => t.status === 'resolved').length;
 
         document.getElementById('statAssigned').textContent = assignedCount;
         document.getElementById('statInProgress').textContent = inProgressCount;
         document.getElementById('statResolved').textContent = resolvedCount;
 
-        const response = await API.getAgentQueue(currentStatus, currentPage, limit);
-        const tickets = response.data;
-        const total = response.total;
-        const totalPages = Math.ceil(total / limit) || 1;
-
-        document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
-        document.getElementById('prevBtn').disabled = currentPage === 1;
-        document.getElementById('nextBtn').disabled = currentPage === totalPages;
-
-        if (tickets.length === 0) {
-          ticketList.innerHTML = `<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No tickets in queue.</p>`;
-          return;
-        }
-
-        ticketList.innerHTML = tickets.map(ticket => `
-          <a href="ticket-detail.html?id=${ticket.id}" class="ticket-item">
-            <div class="ticket-info">
-              <span class="ticket-title">${escapeHtml(ticket.title)}</span>
-              <div class="ticket-meta">
-                <span>#${ticket.id}</span>
-                <span>Last Updated: ${new Date(ticket.updated_at).toLocaleString()}</span>
-              </div>
-            </div>
-            <span class="status-badge status-${ticket.status}">${ticket.status.replace('_', ' ')}</span>
-          </a>
-        `).join('');
+        filterAndRender();
       } catch (err) {
-        ticketList.innerHTML = `<p style="color: #ef4444;">Error loading queue: ${err.message}</p>`;
+        chatList.innerHTML = `<p style="color: #ef4444; padding: 20px; text-align: center;">Error loading chats: ${err.message}</p>`;
       }
     }
 
-    function filterStatus(status) {
+    function filterAndRender() {
+      const query = document.getElementById('ticketSearch').value.toLowerCase();
+      
+      const filtered = allTickets.filter(t => {
+        const statusMatch = currentStatus === '' || t.status === currentStatus;
+        const queryMatch = t.title.toLowerCase().includes(query) || 
+                           t.id.toString().includes(query) ||
+                           t.category.toLowerCase().includes(query);
+        return statusMatch && queryMatch;
+      });
+
+      renderTicketList(filtered);
+    }
+
+    function renderTicketList(tickets) {
+      const chatList = document.getElementById('whatsappChatList');
+      if (tickets.length === 0) {
+        chatList.innerHTML = `<p style="color: var(--text-secondary); padding: 20px; text-align: center;">No tickets in queue.</p>`;
+        return;
+      }
+
+      chatList.innerHTML = tickets.map(ticket => {
+        const isActive = ticket.id === activeTicketId ? 'active' : '';
+        const initial = ticket.title.charAt(0).toUpperCase();
+        const dateStr = new Date(ticket.updated_at).toLocaleDateString([], { month: 'short', day: 'numeric' });
+        
+        return `
+          <div class="chat-item ${isActive}" onclick="selectTicket(${ticket.id})">
+            <div class="chat-avatar" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">${initial}</div>
+            <div class="chat-details">
+              <div class="chat-row">
+                <span class="chat-name">${escapeHtml(ticket.title)}</span>
+                <span class="chat-time">${dateStr}</span>
+              </div>
+              <div class="chat-row">
+                <span class="chat-preview">${getStatusTicks(ticket.status)}#${ticket.id} • ${ticket.category}</span>
+                <span class="status-badge status-${ticket.status}" style="font-size: 0.65rem; padding: 1px 6px;">${ticket.status.replace('_', ' ')}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterTickets() {
+      filterAndRender();
+    }
+
+    function filterStatus(e, status) {
       currentStatus = status;
-      currentPage = 1;
       
       const tabs = document.querySelectorAll('.tab');
       tabs.forEach(t => t.classList.remove('active'));
-      event.target.classList.add('active');
+      e.target.classList.add('active');
       
-      loadQueue();
+      filterAndRender();
     }
 
-    function changePage(delta) {
-      currentPage += delta;
-      loadQueue();
+    async function selectTicket(ticketId) {
+      activeTicketId = ticketId;
+      
+      const items = document.querySelectorAll('.chat-item');
+      items.forEach(item => item.classList.remove('active'));
+      const activeItem = Array.from(items).find(item => item.innerHTML.includes(`#${ticketId}`));
+      if (activeItem) activeItem.classList.add('active');
+
+      const contentPanel = document.getElementById('whatsappContent');
+      contentPanel.innerHTML = `<p style="color: var(--text-secondary); padding: 40px; text-align: center;">Loading conversation...</p>`;
+
+      try {
+        const ticket = await API.getTicketDetails(ticketId);
+        
+        const isAssigned = ticket.status === 'assigned';
+        const isInProgress = ticket.status === 'in_progress';
+        const isResolved = ticket.status === 'resolved';
+
+        contentPanel.innerHTML = `
+          <!-- Chat Window Header -->
+          <div class="chat-window-header">
+            <div class="chat-user-info">
+              <div class="chat-avatar" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">${ticket.title.charAt(0).toUpperCase()}</div>
+              <div>
+                <div style="font-weight: 600; color: #e9edef; font-size: 1rem;">${escapeHtml(ticket.title)}</div>
+                <div style="font-size: 0.8rem; color: #8696a0;">
+                  #${ticket.id} • Customer ID: ${ticket.customer_id} • Priority: <span style="text-transform: uppercase; font-weight: bold;">${ticket.priority}</span>
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span class="status-badge status-${ticket.status}">${ticket.status.replace('_', ' ')}</span>
+            </div>
+          </div>
+
+          <!-- Chat bubble list -->
+          <div id="threadContainer" class="thread-container" style="flex: 1; overflow-y: auto;">
+            <!-- Initial ticket description bubble -->
+            <div class="chat-bubble received">
+              <span class="chat-sender-name">Customer Description</span>
+              <div class="message-body" style="color: #e9edef; white-space: pre-wrap;">${escapeHtml(ticket.description)}</div>
+              <div class="chat-meta">
+                <span>Opened: ${new Date(ticket.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+            
+            ${ticket.responses.length === 0 ? `
+              <div class="chat-bubble system-msg" style="align-self: center;">
+                No replies yet. Use the send bar below to start messaging.
+              </div>
+            ` : ticket.responses.map(res => {
+              const isReopenMsg = res.message.startsWith('Reopened: ');
+              if (isReopenMsg) {
+                return `
+                  <div class="chat-bubble system-msg">
+                    <strong>System Notice</strong>
+                    <div style="margin-top: 2px;">${escapeHtml(res.message)}</div>
+                    <div class="chat-meta">${new Date(res.created_at).toLocaleString()}</div>
+                  </div>
+                `;
+              }
+
+              const isSent = res.sender_id === session.id;
+              const bubbleClass = isSent ? 'sent' : 'received';
+              
+              return `
+                <div class="chat-bubble ${bubbleClass}">
+                  <span class="chat-sender-name">${escapeHtml(res.email)} <span class="role-badge" style="font-size: 0.6rem; padding: 0.05rem 0.3rem;">${res.role}</span></span>
+                  <div class="message-body" style="color: #e9edef;">${escapeHtml(res.message)}</div>
+                  <div class="chat-meta">
+                    <span>${new Date(res.created_at).toLocaleString()}</span>
+                    ${isSent ? getStatusTicks(ticket.status) : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Status transitions / update actions -->
+          <div style="background-color: #202c33; padding: 12px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="color: var(--text-primary); font-weight: 600; font-size: 0.95rem;">Workflow Transition</div>
+              <div style="color: #8696a0; font-size: 0.8rem;">Move the ticket through standard stages.</div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              ${isAssigned ? `
+                <button class="btn" style="background-color: var(--status-in-progress);" onclick="updateStatus(${ticket.id}, 'in_progress')">Start Working</button>
+              ` : ''}
+              ${isInProgress ? `
+                <button class="btn" style="background-color: var(--status-resolved);" onclick="updateStatus(${ticket.id}, 'resolved')">Resolve Ticket</button>
+              ` : ''}
+              ${isResolved ? `
+                <span style="color: var(--status-resolved); font-size: 0.85rem; font-weight: bold; border: 1px solid var(--status-resolved); padding: 4px 8px; border-radius: 4px;">Pending Customer Close</span>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Chat Input Bar -->
+          ${(!isResolved && ticket.status !== 'closed') ? `
+            <div class="chat-input-bar">
+              <form id="chatRespondForm" onsubmit="sendResponse(event, ${ticket.id})">
+                <input type="text" id="chatMessage" placeholder="Type a message" required style="flex: 1; background-color: var(--bg-tertiary); border: none; padding: 10px 16px; border-radius: 8px; color: #fff;">
+                <button type="submit" class="btn" style="background-color: #005c4b; padding: 10px 20px;">Send</button>
+              </form>
+            </div>
+          ` : ''}
+        `;
+
+        const threadContainer = document.getElementById('threadContainer');
+        threadContainer.scrollTop = threadContainer.scrollHeight;
+
+      } catch (err) {
+        contentPanel.innerHTML = `<p style="color: #ef4444; padding: 40px; text-align: center;">Error loading ticket: ${err.message}</p>`;
+      }
+    }
+
+    async function sendResponse(e, ticketId) {
+      e.preventDefault();
+      const input = document.getElementById('chatMessage');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      try {
+        await API.postResponse(ticketId, msg);
+        input.value = '';
+        selectTicket(ticketId);
+      } catch (err) {
+        alert(`Failed to send response: ${err.message}`);
+      }
+    }
+
+    async function updateStatus(ticketId, nextStatus) {
+      try {
+        await API.updateStatus(ticketId, nextStatus);
+        loadQueue();
+        selectTicket(ticketId);
+      } catch (err) {
+        alert(`Failed to update status: ${err.message}`);
+      }
     }
 
     function escapeHtml(unsafe) {

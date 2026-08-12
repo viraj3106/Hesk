@@ -142,6 +142,16 @@
       window.location.href = 'index.html';
     }
 
+    function getStatusTicks(status) {
+      if (status === 'open') {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M1.5 6.5L4.5 9.5L11.5 3" stroke="#8696a0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      } else if (status === 'assigned' || status === 'in_progress') {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M15 3L8.5 9.5L5.5 6.5M11.5 3L8.5 6M1.5 6.5L4.5 9.5" stroke="#8696a0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      } else {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M15 3L8.5 9.5L5.5 6.5M11.5 3L8.5 6M1.5 6.5L4.5 9.5" stroke="#53bdeb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      }
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const ticketId = urlParams.get('id');
 
@@ -180,21 +190,39 @@
         // Thread
         const threadContainer = document.getElementById('threadContainer');
         if (ticketDetails.responses.length === 0) {
-          threadContainer.innerHTML = `<p style="color: var(--text-secondary);">No responses yet.</p>`;
+          threadContainer.innerHTML = `<p style="color: var(--text-secondary); text-align: center; width: 100%;">No responses yet.</p>`;
         } else {
           threadContainer.innerHTML = ticketDetails.responses.map(res => {
             const isReopenMsg = res.message.startsWith('Reopened: ');
-            const boxStyle = isReopenMsg ? 'style="border-left: 4px solid var(--accent-primary); background: rgba(249, 115, 22, 0.05);"' : '';
-            return `
-              <div class="message-box" ${boxStyle}>
-                <div class="message-header">
-                  <span class="message-sender">${escapeHtml(res.email)} <span class="role-badge" style="font-size: 0.65rem; padding: 0.1rem 0.4rem;">${res.role}</span></span>
-                  <span>${new Date(res.created_at).toLocaleString()}</span>
+            if (isReopenMsg) {
+              return `
+                <div class="chat-bubble system-msg">
+                  <strong>System Notice</strong>
+                  <div style="margin-top: 2px;">${escapeHtml(res.message)}</div>
+                  <div class="chat-meta">${new Date(res.created_at).toLocaleString()}</div>
                 </div>
-                <div class="message-body">${escapeHtml(res.message)}</div>
+              `;
+            }
+
+            const isSent = res.sender_id === session.id;
+            const bubbleClass = isSent ? 'sent' : 'received';
+            
+            return `
+              <div class="chat-bubble ${bubbleClass}">
+                <span class="chat-sender-name">${escapeHtml(res.email)} <span class="role-badge" style="font-size: 0.6rem; padding: 0.05rem 0.3rem;">${res.role}</span></span>
+                <div class="message-body" style="color: #e9edef;">${escapeHtml(res.message)}</div>
+                <div class="chat-meta">
+                  <span>${new Date(res.created_at).toLocaleString()}</span>
+                  ${isSent ? getStatusTicks(ticketDetails.status) : ''}
+                </div>
               </div>
             `;
           }).join('');
+          
+          // Auto-scroll to bottom of chat
+          setTimeout(() => {
+            threadContainer.scrollTop = threadContainer.scrollHeight;
+          }, 50);
         }
 
         // Show Response Box based on RBAC:

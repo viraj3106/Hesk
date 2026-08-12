@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ResolveDesk Customer Dashboard</title>
+  <title>ResolveDesk Customer Portal</title>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E">
 </head>
 <body>
-  <div class="app-container">
-    <header>
+  <div class="app-container" style="padding: 1rem 1.5rem;">
+    <header style="margin-bottom: 1.5rem; padding-bottom: 1rem;">
       <div>
         <span class="logo">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -28,57 +28,107 @@
       <div class="user-nav">
         <span class="user-info" id="userEmail"></span>
         <span class="role-badge">Customer</span>
+        <button class="btn btn-secondary" onclick="openCreateModal()">New Ticket</button>
         <button class="btn btn-secondary" onclick="API.logout()">Sign Out</button>
       </div>
     </header>
 
-    <div class="dashboard-grid">
-      <div>
-        <h2 style="margin-bottom: 1.5rem;">Your Tickets</h2>
-        <div id="ticketList" class="ticket-list">
-          <p style="color: var(--text-secondary);">Loading tickets...</p>
+    <div class="whatsapp-layout">
+      <!-- Left Sidebar: Ticket List -->
+      <div class="whatsapp-sidebar">
+        <div class="sidebar-header">
+          <h3 style="font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center;">
+            Chats
+            <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.8rem;" onclick="openCreateModal()">+</button>
+          </h3>
+          <div class="sidebar-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="ticketSearch" placeholder="Search or start new chat" oninput="filterTickets()">
+          </div>
+        </div>
+        <div id="whatsappChatList" class="whatsapp-chat-list">
+          <p style="color: var(--text-secondary); padding: 20px; text-align: center;">Loading chats...</p>
         </div>
       </div>
 
-      <div>
-        <div class="card" style="max-width: 100%; padding: 2rem;">
-          <h3 style="margin-bottom: 1rem;">Raise a Ticket</h3>
-          <form id="createTicketForm">
-            <div class="form-group">
-              <label for="ticketTitle">Subject</label>
-              <input type="text" id="ticketTitle" placeholder="e.g. Can't access my invoice" required>
-            </div>
-
-            <div class="form-group">
-              <label for="ticketCategory">Category</label>
-              <select id="ticketCategory" required>
-                <option value="" disabled selected>Select Category</option>
-                <option value="Billing & Payments">Billing & Payments</option>
-                <option value="Technical Support">Technical Support</option>
-                <option value="Account Access">Account Access</option>
-                <option value="General Inquiry">General Inquiry</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="ticketPriority">Priority</label>
-              <select id="ticketPriority" required>
-                <option value="low">Low</option>
-                <option value="medium" selected>Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
+      <!-- Right Panel: Conversation -->
+      <div id="whatsappContent" class="whatsapp-content">
+        <!-- Empty state placeholder (WhatsApp laptop doodle screen) -->
+        <div class="whatsapp-welcome">
+          <svg width="250" height="180" viewBox="0 0 250 180" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block; margin: 0 auto 2rem;">
+            <!-- Laptop base -->
+            <path d="M40 145h170v5H40z" fill="#4b6043" />
+            <path d="M20 150h210c4.4 0 8 3.6 8 8v2a2 2 0 01-2 2H34a2 2 0 01-2-2v-2c0-4.4 3.6-8 8-8z" fill="#1b2e20" stroke="#000" stroke-width="2" />
+            <path d="M110 150h30v4h-30z" fill="#4b6043" />
             
-            <div class="form-group">
-              <label for="ticketDesc">Description</label>
-              <textarea id="ticketDesc" rows="5" placeholder="Explain the issue in detail..." required></textarea>
-            </div>
-
-            <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Submit Ticket</button>
-          </form>
-          <div id="ticketError" style="margin-top: 1rem; color: #ef4444; font-size: 0.9rem; display: none;"></div>
+            <!-- Screen back -->
+            <rect x="50" y="25" width="150" height="120" rx="10" fill="#202c33" stroke="#000" stroke-width="2" />
+            <path d="M50 135h150" stroke="#000" stroke-width="1.5" />
+            <circle cx="58" cy="33" r="3" fill="#ef4444" />
+            <circle cx="68" cy="33" r="3" fill="#f59e0b" />
+            <circle cx="78" cy="33" r="3" fill="#10b981" />
+            
+            <!-- Phone overlay screen -->
+            <rect x="75" y="45" width="100" height="80" rx="8" fill="#1ebd5b" stroke="#000" stroke-width="2" />
+            
+            <!-- White circle with phone icon inside -->
+            <circle cx="125" cy="85" r="20" fill="#fff" stroke="#000" stroke-width="1.5" />
+            <path d="M120 80c0-.5.4-.9.9-.9h.2c1.3 0 2.5.5 3.4 1.4s1.4 2.1 1.4 3.4v.2c0 .5-.4.9-.9.9h-1.5c-.3 0-.6-.2-.8-.4l-1-1a3.6 3.6 0 01-1.3-1.3l-1-1c-.2-.2-.4-.5-.4-.8V80z" fill="#1ebd5b" />
+          </svg>
+          <h2>ResolveDesk for Windows</h2>
+          <p>Raise support tickets, chat with agents in real-time, and track resolutions. Your conversations are securely synchronized with our support desk.</p>
+          <button class="btn" style="background-color: #1ebd5b;" onclick="openCreateModal()">Raise a New Ticket</button>
+          
+          <div class="whatsapp-welcome-footer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            End-to-end secure ticketing
+          </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Create Ticket Modal -->
+  <div id="createTicketModal" class="modal-overlay" style="display: none;">
+    <div class="card" style="width: 100%; max-width: 500px; padding: 2rem;">
+      <h3 style="margin-bottom: 1rem;">Raise a Ticket</h3>
+      <form id="createTicketForm">
+        <div class="form-group">
+          <label for="ticketTitle">Subject</label>
+          <input type="text" id="ticketTitle" placeholder="e.g. Can't access my invoice" required style="background-color: var(--bg-secondary); border: 1.5px solid var(--border-color); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 8px;">
+        </div>
+
+        <div class="form-group">
+          <label for="ticketCategory">Category</label>
+          <select id="ticketCategory" required>
+            <option value="" disabled selected>Select Category</option>
+            <option value="Billing & Payments">Billing & Payments</option>
+            <option value="Technical Support">Technical Support</option>
+            <option value="Account Access">Account Access</option>
+            <option value="General Inquiry">General Inquiry</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="ticketPriority">Priority</label>
+          <select id="ticketPriority" required>
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="ticketDesc">Description</label>
+          <textarea id="ticketDesc" rows="4" placeholder="Explain the issue in detail..." required style="background-color: var(--bg-secondary); border: 1.5px solid var(--border-color); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 8px;"></textarea>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+          <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="closeCreateModal()">Cancel</button>
+          <button type="submit" class="btn" style="flex: 1;">Submit Ticket</button>
+        </div>
+      </form>
+      <div id="ticketError" style="margin-top: 1rem; color: #ef4444; font-size: 0.9rem; display: none;"></div>
     </div>
   </div>
 
@@ -91,30 +141,267 @@
 
     document.getElementById('userEmail').textContent = session.email;
 
+    function getStatusTicks(status) {
+      if (status === 'open') {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M1.5 6.5L4.5 9.5L11.5 3" stroke="#8696a0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      } else if (status === 'assigned' || status === 'in_progress') {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M15 3L8.5 9.5L5.5 6.5M11.5 3L8.5 6M1.5 6.5L4.5 9.5" stroke="#8696a0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      } else {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M15 3L8.5 9.5L5.5 6.5M11.5 3L8.5 6M1.5 6.5L4.5 9.5" stroke="#53bdeb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      }
+    }
+
+    let allTickets = [];
+    let activeTicketId = null;
+
     async function loadTickets() {
-      const ticketList = document.getElementById('ticketList');
+      const chatList = document.getElementById('whatsappChatList');
       try {
-        const tickets = await API.getMyTickets();
-        if (tickets.length === 0) {
-          ticketList.innerHTML = `<p style="color: var(--text-secondary);">You haven't submitted any tickets yet.</p>`;
-          return;
-        }
+        allTickets = await API.getMyTickets();
+        renderTicketList(allTickets);
+      } catch (err) {
+        chatList.innerHTML = `<p style="color: #ef4444; padding: 20px; text-align: center;">Error loading chats: ${err.message}</p>`;
+      }
+    }
+
+    function renderTicketList(tickets) {
+      const chatList = document.getElementById('whatsappChatList');
+      if (tickets.length === 0) {
+        chatList.innerHTML = `<p style="color: var(--text-secondary); padding: 20px; text-align: center;">No tickets found.</p>`;
+        return;
+      }
+
+      chatList.innerHTML = tickets.map(ticket => {
+        const isActive = ticket.id === activeTicketId ? 'active' : '';
+        const initial = ticket.title.charAt(0).toUpperCase();
+        const dateStr = new Date(ticket.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' });
         
-        ticketList.innerHTML = tickets.map(ticket => `
-          <a href="ticket-detail.html?id=${ticket.id}" class="ticket-item">
-            <div class="ticket-info">
-              <span class="ticket-title">${escapeHtml(ticket.title)}</span>
-              <div class="ticket-meta">
-                <span>#${ticket.id}</span>
-                <span>Created: ${new Date(ticket.created_at).toLocaleDateString()}</span>
+        return `
+          <div class="chat-item ${isActive}" onclick="selectTicket(${ticket.id})">
+            <div class="chat-avatar">${initial}</div>
+            <div class="chat-details">
+              <div class="chat-row">
+                <span class="chat-name">${escapeHtml(ticket.title)}</span>
+                <span class="chat-time">${dateStr}</span>
+              </div>
+              <div class="chat-row">
+                <span class="chat-preview">${getStatusTicks(ticket.status)}#${ticket.id} • ${ticket.category}</span>
+                <span class="status-badge status-${ticket.status}" style="font-size: 0.65rem; padding: 1px 6px;">${ticket.status.replace('_', ' ')}</span>
               </div>
             </div>
-            <span class="status-badge status-${ticket.status}">${ticket.status.replace('_', ' ')}</span>
-          </a>
-        `).join('');
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterTickets() {
+      const query = document.getElementById('ticketSearch').value.toLowerCase();
+      const filtered = allTickets.filter(t => 
+        t.title.toLowerCase().includes(query) || 
+        t.id.toString().includes(query) ||
+        t.category.toLowerCase().includes(query)
+      );
+      renderTicketList(filtered);
+    }
+
+    async function selectTicket(ticketId) {
+      activeTicketId = ticketId;
+      
+      // Update sidebar active status immediately
+      const items = document.querySelectorAll('.chat-item');
+      items.forEach(item => item.classList.remove('active'));
+      const activeItem = Array.from(items).find(item => item.innerHTML.includes(`#${ticketId}`));
+      if (activeItem) activeItem.classList.add('active');
+
+      const contentPanel = document.getElementById('whatsappContent');
+      contentPanel.innerHTML = `<p style="color: var(--text-secondary); padding: 40px; text-align: center;">Loading conversation...</p>`;
+
+      try {
+        const ticket = await API.getTicketDetails(ticketId);
+        
+        const isResolved = ticket.status === 'resolved';
+        const isClosed = ticket.status === 'closed';
+
+        contentPanel.innerHTML = `
+          <!-- Chat Window Header -->
+          <div class="chat-window-header">
+            <div class="chat-user-info">
+              <div class="chat-avatar">${ticket.title.charAt(0).toUpperCase()}</div>
+              <div>
+                <div style="font-weight: 600; color: #e9edef; font-size: 1rem;">${escapeHtml(ticket.title)}</div>
+                <div style="font-size: 0.8rem; color: #8696a0;">
+                  #${ticket.id} • ${ticket.category} • Priority: <span style="text-transform: uppercase;">${ticket.priority}</span>
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span class="status-badge status-${ticket.status}">${ticket.status.replace('_', ' ')}</span>
+              ${isClosed ? `<button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="reopenTicket(${ticket.id})">Reopen Chat</button>` : ''}
+            </div>
+          </div>
+
+          <!-- Chat bubble list -->
+          <div id="threadContainer" class="thread-container" style="flex: 1; overflow-y: auto;">
+            <!-- Initial ticket description bubble -->
+            <div class="chat-bubble received">
+              <span class="chat-sender-name">System (Ticket Description)</span>
+              <div class="message-body" style="color: #e9edef; white-space: pre-wrap;">${escapeHtml(ticket.description)}</div>
+              <div class="chat-meta">
+                <span>Opened: ${new Date(ticket.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+            
+            ${ticket.responses.length === 0 ? `
+              <div class="chat-bubble system-msg" style="align-self: center;">
+                No replies yet. An agent will respond shortly.
+              </div>
+            ` : ticket.responses.map(res => {
+              const isReopenMsg = res.message.startsWith('Reopened: ');
+              if (isReopenMsg) {
+                return `
+                  <div class="chat-bubble system-msg">
+                    <strong>System Notice</strong>
+                    <div style="margin-top: 2px;">${escapeHtml(res.message)}</div>
+                    <div class="chat-meta">${new Date(res.created_at).toLocaleString()}</div>
+                  </div>
+                `;
+              }
+
+              const isSent = res.sender_id === session.id;
+              const bubbleClass = isSent ? 'sent' : 'received';
+              
+              return `
+                <div class="chat-bubble ${bubbleClass}">
+                  <span class="chat-sender-name">${escapeHtml(res.email)} <span class="role-badge" style="font-size: 0.6rem; padding: 0.05rem 0.3rem;">${res.role}</span></span>
+                  <div class="message-body" style="color: #e9edef;">${escapeHtml(res.message)}</div>
+                  <div class="chat-meta">
+                    <span>${new Date(res.created_at).toLocaleString()}</span>
+                    ${isSent ? getStatusTicks(ticket.status) : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Resolution banner if resolved -->
+          ${isResolved ? `
+            <div style="background-color: #202c33; padding: 12px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="color: var(--accent-primary); font-weight: 600; font-size: 0.95rem;">This ticket is resolved</div>
+                <div style="color: #8696a0; font-size: 0.8rem;">Please accept resolution to close, or reopen if you need further help.</div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="openReopenModal(${ticket.id})">Reopen</button>
+                <button class="btn" style="padding: 6px 12px; font-size: 0.85rem; background-color: #1ebd5b;" onclick="acceptResolution(${ticket.id})">Accept & Close</button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Chat Input Bar -->
+          ${(!isClosed && !isResolved) ? `
+            <div class="chat-input-bar">
+              <form id="chatRespondForm" onsubmit="sendResponse(event, ${ticket.id})">
+                <input type="text" id="chatMessage" placeholder="Type a message" required style="flex: 1; background-color: var(--bg-tertiary); border: none; padding: 10px 16px; border-radius: 8px; color: #fff;">
+                <button type="submit" class="btn" style="background-color: #005c4b; padding: 10px 20px;">Send</button>
+              </form>
+            </div>
+          ` : ''}
+        `;
+
+        // Scroll to bottom of chat
+        const threadContainer = document.getElementById('threadContainer');
+        threadContainer.scrollTop = threadContainer.scrollHeight;
+
       } catch (err) {
-        ticketList.innerHTML = `<p style="color: #ef4444;">Error loading tickets: ${err.message}</p>`;
+        contentPanel.innerHTML = `<p style="color: #ef4444; padding: 40px; text-align: center;">Error loading ticket: ${err.message}</p>`;
       }
+    }
+
+    async function sendResponse(e, ticketId) {
+      e.preventDefault();
+      const input = document.getElementById('chatMessage');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      try {
+        await API.postResponse(ticketId, msg);
+        input.value = '';
+        selectTicket(ticketId);
+      } catch (err) {
+        alert(`Failed to send response: ${err.message}`);
+      }
+    }
+
+    async function acceptResolution(ticketId) {
+      if (!confirm("Are you sure you want to accept the resolution and close this ticket?")) return;
+      try {
+        await API.closeTicket(ticketId);
+        loadTickets();
+        selectTicket(ticketId);
+      } catch (err) {
+        alert(`Failed to close ticket: ${err.message}`);
+      }
+    }
+
+    function reopenTicket(ticketId) {
+      openReopenModal(ticketId);
+    }
+
+    // Reopen modal functions
+    let ticketIdToReopen = null;
+    
+    function openReopenModal(ticketId) {
+      ticketIdToReopen = ticketId;
+      const overlay = document.createElement('div');
+      overlay.id = 'reopenReasonModal';
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="card" style="width: 100%; max-width: 500px; padding: 2rem;">
+          <h2 style="margin-bottom: 0.5rem;">Reopen Ticket</h2>
+          <p style="margin-bottom: 1.5rem; font-size: 0.95rem; color: var(--text-secondary);">Please tell us why you are reopening this ticket.</p>
+          <form id="reopenReasonForm" onsubmit="submitReopen(event)">
+            <div class="form-group">
+              <label for="reopenReason">Reason</label>
+              <textarea id="reopenReason" rows="4" placeholder="Describe the remaining issues..." required style="background-color: var(--bg-secondary); border: 1.5px solid var(--border-color); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 8px;"></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+              <button type="button" class="btn btn-secondary" onclick="closeReopenModal()">Cancel</button>
+              <button type="submit" class="btn">Reopen Ticket</button>
+            </div>
+          </form>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+
+    function closeReopenModal() {
+      const m = document.getElementById('reopenReasonModal');
+      if (m) m.remove();
+    }
+
+    async function submitReopen(e) {
+      e.preventDefault();
+      const reason = document.getElementById('reopenReason').value;
+      try {
+        await API.reopenTicket(ticketIdToReopen, reason);
+        closeReopenModal();
+        loadTickets();
+        selectTicket(ticketIdToReopen);
+      } catch (err) {
+        alert(`Failed to reopen ticket: ${err.message}`);
+      }
+    }
+
+    // New Ticket Modal functions
+    function openCreateModal() {
+      document.getElementById('createTicketModal').style.display = 'flex';
+    }
+
+    function closeCreateModal() {
+      document.getElementById('createTicketModal').style.display = 'none';
+      document.getElementById('createTicketForm').reset();
+      document.getElementById('ticketPriority').value = 'medium';
+      document.getElementById('ticketError').style.display = 'none';
     }
 
     document.getElementById('createTicketForm').addEventListener('submit', async (e) => {
@@ -127,10 +414,12 @@
       errorDiv.style.display = 'none';
 
       try {
-        await API.createTicket(title, category, priority, desc);
-        document.getElementById('createTicketForm').reset();
-        document.getElementById('ticketPriority').value = 'medium';
+        const ticket = await API.createTicket(title, category, priority, desc);
+        closeCreateModal();
         loadTickets();
+        if (ticket && ticket.id) {
+          selectTicket(ticket.id);
+        }
       } catch (err) {
         errorDiv.textContent = err.message;
         errorDiv.style.display = 'block';
