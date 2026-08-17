@@ -320,11 +320,13 @@
 
       try {
         await API.postResponse(ticketId, msg);
+        showToast('Response Posted', 'Your message has been added to the thread.', 'success');
         document.getElementById('respondMessage').value = '';
         loadTicket();
       } catch (err) {
         errorDiv.textContent = err.message;
         errorDiv.style.display = 'block';
+        showToast('Error', `Failed to send message: ${err.message}`, 'error');
       }
     });
 
@@ -332,18 +334,20 @@
       if (!agentId) return;
       try {
         await API.assignTicket(ticketId, agentId);
+        showToast('Ticket Assigned', 'Agent has been successfully assigned.', 'success');
         loadTicket();
       } catch (err) {
-        alert(`Assignment failed: ${err.message}`);
+        showToast('Error', `Assignment failed: ${err.message}`, 'error');
       }
     }
 
     async function updateStatus(newStatus) {
       try {
         await API.updateStatus(ticketId, newStatus);
+        showToast('Status Updated', `Ticket status updated to ${newStatus.replace('_', ' ')}.`, 'success');
         loadTicket();
       } catch (err) {
-        alert(`Status update failed: ${err.message}`);
+        showToast('Error', `Status update failed: ${err.message}`, 'error');
       }
     }
 
@@ -360,15 +364,16 @@
       e.preventDefault();
       const reason = document.getElementById('reopenReason').value;
       if (!reason.trim()) {
-        alert('Reason is required');
+        showToast('Warning', 'Reason is required to reopen the ticket.', 'warning');
         return;
       }
       try {
         await API.reopenTicket(ticketId, reason);
         closeReopenModal();
+        showToast('Ticket Reopened', 'Ticket has been successfully reopened.', 'success');
         loadTicket();
       } catch (err) {
-        alert(`Failed to reopen ticket: ${err.message}`);
+        showToast('Error', `Failed to reopen ticket: ${err.message}`, 'error');
       }
     });
 
@@ -377,9 +382,10 @@
       if (!confirmClose) return;
       try {
         await API.closeTicket(ticketId);
+        showToast('Ticket Closed', 'You have accepted the resolution and closed the ticket.', 'success');
         loadTicket();
       } catch (err) {
-        alert(`Failed to close ticket: ${err.message}`);
+        showToast('Error', `Failed to close ticket: ${err.message}`, 'error');
       }
     }
 

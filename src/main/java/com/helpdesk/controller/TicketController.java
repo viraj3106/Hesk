@@ -289,7 +289,16 @@ public class TicketController {
         if (agentIdObj == null) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Agent ID is required"));
         }
-        Long agentId = ((Number) agentIdObj).longValue();
+        Long agentId;
+        if (agentIdObj instanceof Number) {
+            agentId = ((Number) agentIdObj).longValue();
+        } else {
+            try {
+                agentId = Long.parseLong(agentIdObj.toString());
+            } catch (NumberFormatException e) {
+                return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid Agent ID format"));
+            }
+        }
 
         ResponseEntity<?>[] errorHolder = new ResponseEntity<?>[1];
         Map<String, Object> ticket = getTicketOr404(id, errorHolder);

@@ -322,20 +322,22 @@
 
       try {
         await API.postResponse(ticketId, msg);
+        showToast('Response Sent', 'Your message has been posted successfully.', 'success');
         input.value = '';
         selectTicket(ticketId);
       } catch (err) {
-        alert(`Failed to send response: ${err.message}`);
+        showToast('Error', `Failed to send response: ${err.message}`, 'error');
       }
     }
 
     async function updateStatus(ticketId, nextStatus) {
       try {
         await API.updateStatus(ticketId, nextStatus);
+        showToast('Status Updated', `Ticket status updated to ${nextStatus.replace('_', ' ')}.`, 'success');
         loadQueue();
         selectTicket(ticketId);
       } catch (err) {
-        alert(`Failed to update status: ${err.message}`);
+        showToast('Error', `Failed to update status: ${err.message}`, 'error');
       }
     }
 

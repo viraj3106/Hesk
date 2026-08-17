@@ -362,14 +362,15 @@
       if (!selectEl) return;
       const agentId = selectEl.value;
       if (!agentId) {
-        alert('Please select an agent first.');
+        showToast('Warning', 'Please select an agent first.', 'warning');
         return;
       }
       try {
         await API.assignTicket(ticketId, agentId);
+        showToast('Ticket Assigned', 'The agent has been successfully assigned.', 'success');
         await init();
       } catch (err) {
-        alert(`Assignment failed: ${err.message}`);
+        showToast('Error', `Assignment failed: ${err.message}`, 'error');
       }
     }
 

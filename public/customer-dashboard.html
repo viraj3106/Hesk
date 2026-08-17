@@ -416,6 +416,7 @@
       try {
         const ticket = await API.createTicket(title, category, priority, desc);
         closeCreateModal();
+        showToast('Ticket Submitted', 'Your ticket has been created successfully.', 'success');
         loadTickets();
         if (ticket && ticket.id) {
           selectTicket(ticket.id);

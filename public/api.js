@@ -1,4 +1,9 @@
-const API_BASE_URL = window.location.origin;
+// Set this to your deployed Render backend URL (e.g., https://resolvedesk-backend.onrender.com)
+const DEPLOYED_BACKEND_URL = 'https://resolvedesk-backend.onrender.com';
+
+const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? window.location.origin
+  : DEPLOYED_BACKEND_URL;
 
 function getHeaders() {
   const token = localStorage.getItem('token');
@@ -174,3 +179,56 @@ const API = {
     });
   }
 };
+
+function showToast(title, message, type = 'success') {
+  let container = document.querySelector('.toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+
+  let icon = '🔔';
+  if (type === 'success') icon = '✓';
+  if (type === 'error') icon = '✗';
+  if (type === 'warning') icon = '⚠';
+  if (type === 'info') icon = 'ℹ';
+
+  toast.innerHTML = `
+    <div class="toast-icon">${icon}</div>
+    <div class="toast-content">
+      <div class="toast-title">${title}</div>
+      <div class="toast-message">${message}</div>
+    </div>
+    <button class="toast-close">&times;</button>
+  `;
+
+  const closeBtn = toast.querySelector('.toast-close');
+  closeBtn.onclick = () => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 400);
+  };
+
+  container.appendChild(toast);
+
+  // Trigger reflow to enable CSS transition
+  toast.offsetHeight;
+
+  toast.classList.add('show');
+
+  // Auto remove
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+      }, 400);
+    }
+  }, 4000);
+}
+
+window.showToast = showToast;
+
