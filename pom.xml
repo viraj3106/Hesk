@@ -41,6 +41,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- H2 In-Memory/File Database (Fallback for instant deployment) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Auth0 JWT for easy token verification -->
         <dependency>
             <groupId>com.auth0</groupId>
