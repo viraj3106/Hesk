@@ -2,7 +2,21 @@
 
 Hey 👋 Welcome to **ResolveDesk**! Every issue deserves an owner, every conversation deserves a history, and every resolution deserves a closed loop. 
 
+🌐 **Live Demo:** [https://resolvedesk-gvuw.onrender.com/](https://resolvedesk-gvuw.onrender.com/)
+
 **ResolveDesk** is a clean, role-based customer support and ticketing platform designed to streamline issue tracking, assignment, communication, and resolution. Built with a high-performance **Java Spring Boot (Data JPA & Hibernate)** backend connected directly to **MySQL 8.x**, and a sleek, modern **Vanilla JS & CSS** frontend, ResolveDesk is built for speed, safety, and reliability.
+
+---
+
+## ⚡ Live Production URL & Demo Credentials
+
+| Attribute | Details |
+| :--- | :--- |
+| **Live App URL** | [https://resolvedesk-gvuw.onrender.com/](https://resolvedesk-gvuw.onrender.com/) |
+| **Admin Login** | `admin@resolvedesk.com` / `Admin@123456` |
+| **Support Agent Login** | `agent@resolvedesk.com` / `Agent@123456` |
+| **Customer Login** | `customer@resolvedesk.com` / `Customer@123456` |
+| **Database** | TiDB Serverless Cloud MySQL Cluster (AWS Singapore) |
 
 ---
 
