@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResolveDesk Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div>
+        <span class="logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <defs>
+              <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f97316" />
+                <stop offset="100%" stop-color="#eab308" />
+              </linearGradient>
+            </defs>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-width="2.5"/>
+            <path d="m9 12 2 2 4-4" stroke-width="2.5"/>
+          </svg>
+          ResolveDesk
+        </span>
+      </div>
+      <div class="user-nav">
+        <span class="user-info" id="userEmail"></span>
+        <span class="role-badge">Administrator</span>
+        <button class="btn btn-secondary" onclick="API.logout()">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Stats Widgets -->
+    <div class="stats-row" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+      <div class="stat-card">
+        <h3>Total Tickets</h3>
+        <div class="stat-number" id="statTotal">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Open</h3>
+        <div class="stat-number" id="statOpen">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Assigned</h3>
+        <div class="stat-number" id="statAssigned">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>In Progress</h3>
+        <div class="stat-number" id="statInProgress">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Resolved</h3>
+        <div class="stat-number" id="statResolved">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Closed</h3>
+        <div class="stat-number" id="statClosed">-</div>
+      </div>
+    </div>
+
+    <!-- Tabs switcher -->
+    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.25rem;">
+      <button id="tabTicketsBtn" class="btn" onclick="switchTab('tickets')" style="background: none; border: none; font-size: 1rem; color: var(--accent-primary); border-bottom: 2px solid var(--accent-primary); border-radius: 0; padding: 0.5rem 1rem; cursor: pointer; box-shadow: none;">Tickets Queue</button>
+      <button id="tabAnalyticsBtn" class="btn" onclick="switchTab('analytics')" style="background: none; border: none; font-size: 1rem; color: var(--text-secondary); border-radius: 0; padding: 0.5rem 1rem; cursor: pointer; box-shadow: none;">Analytics</button>
+    </div>
+
+    <div id="ticketsView" class="dashboard-grid">
+      <!-- Left side: all tickets -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+          <h2>All Support Tickets</h2>
+          
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.8rem; color: var(--text-secondary);">Status</label>
+              <select id="statusFilter" onchange="filterChange()" style="width: 120px; padding: 0.4rem; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px;">
+                <option value="">All</option>
+                <option value="open">Open</option>
+                <option value="assigned">Assigned</option>
+                <option value="in_progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.8rem; color: var(--text-secondary);">Priority</label>
+              <select id="priorityFilter" onchange="filterChange()" style="width: 100px; padding: 0.4rem; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px;">
+                <option value="">All</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.8rem; color: var(--text-secondary);">Agent</label>
+              <select id="agentFilter" onchange="filterChange()" style="width: 150px; padding: 0.4rem; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px;">
+                <option value="">All</option>
+                <option value="unassigned">Unassigned</option>
+                <!-- filled dynamically -->
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 0; overflow-x: auto; margin-bottom: 1.5rem; background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 12px;">
+          <table style="margin-top: 0; width: 100%;">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Customer</th>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Assigned Agent</th>
+                <th>Created</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="ticketTableBody">
+              <tr>
+                <td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading tickets...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <button class="btn btn-secondary" id="prevBtn" onclick="changePage(-1)">Previous</button>
+          <span id="pageInfo" style="font-size: 0.95rem; color: var(--text-secondary);">Page 1 of 1</span>
+          <button class="btn btn-secondary" id="nextBtn" onclick="changePage(1)">Next</button>
+        </div>
+      </div>
+
+      <!-- Right side: agent workload -->
+      <div>
+        <h3 style="margin-bottom: 1rem;">Agent Workloads</h3>
+        <div class="card" style="max-width: 100%; padding: 1.5rem; background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow-x: auto;">
+          <table style="margin-top: 0;">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Email</th>
+                <th style="text-align: right;">Active Tickets</th>
+              </tr>
+            </thead>
+            <tbody id="agentWorkloads">
+              <tr>
+                <td colspan="3" style="color: var(--text-secondary); padding: 1rem;">Loading workload...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics View -->
+    <div id="analyticsView" style="display: none;">
+      <!-- Key metrics row -->
+      <div class="stats-row" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 2rem;">
+        <div class="stat-card">
+          <h3>Average Resolution Time</h3>
+          <div class="stat-number" id="analyticsAvgResolution">-</div>
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">minutes</span>
+        </div>
+        <div class="stat-card">
+          <h3>Open Tickets Rate</h3>
+          <div class="stat-number" id="analyticsOpenRate">-</div>
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">% of total</span>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        <!-- Chart 1: Status Distribution -->
+        <div class="card" style="padding: 1.5rem; background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 12px;">
+          <h3 style="margin-bottom: 1.5rem;">Ticket Status Distribution</h3>
+          <div id="statusChartContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- filled dynamically with CSS bars -->
+          </div>
+        </div>
+
+        <!-- Chart 2: Priority Distribution -->
+        <div class="card" style="padding: 1.5rem; background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 12px;">
+          <h3 style="margin-bottom: 1.5rem;">Priority Distribution</h3>
+          <div id="priorityChartContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- filled dynamically with CSS bars -->
+          </div>
+        </div>
+
+        <!-- Chart 3: Agent Workload -->
+        <div class="card" style="padding: 1.5rem; background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 12px;">
+          <h3 style="margin-bottom: 1.5rem;">Agent Active Workload</h3>
+          <div id="agentWorkloadChartContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- filled dynamically with CSS bars -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Tickets Table -->
+      <div class="card" style="padding: 1.5rem; background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 2rem;">
+        <h3 style="margin-bottom: 1rem;">Recent Tickets</h3>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; margin-top: 0;">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Customer</th>
+                <th>Assigned Agent</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="recentTicketsTableBody">
+              <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 1rem;">Loading recent tickets...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script>
+    const session = API.getSession();
+    if (!session || session.role !== 'admin') {
+      window.location.href = 'index.html';
+    }
+
+    document.getElementById('userEmail').textContent = session.email;
+
+    let currentStatusFilter = '';
+    let currentPriorityFilter = '';
+    let currentAgentFilter = '';
+    let currentPage = 1;
+    const limit = 10; // set limit to 10 for better paginated view
+    let agentsList = [];
+
+    async function loadStats() {
+      try {
+        const stats = await API.getAdminStats();
+        document.getElementById('statTotal').textContent = stats.total;
+        document.getElementById('statOpen').textContent = stats.open;
+        document.getElementById('statAssigned').textContent = stats.assigned || 0;
+        document.getElementById('statInProgress').textContent = stats.in_progress || 0;
+        document.getElementById('statResolved').textContent = stats.resolved || 0;
+        document.getElementById('statClosed').textContent = stats.closed;
+      } catch (err) {
+        console.error('Stats loading failed:', err);
+      }
+    }
+
+    async function loadAgents() {
+      try {
+        agentsList = await API.getAdminAgents();
+        
+        // Populate agent filter select
+        const agentFilterSelect = document.getElementById('agentFilter');
+        // Keep "All" and "Unassigned" options, remove the rest, then populate
+        agentFilterSelect.innerHTML = `
+          <option value="">All</option>
+          <option value="unassigned">Unassigned</option>
+          ${agentsList.map(a => `<option value="${a.id}">${escapeHtml(a.name || a.email)}</option>`).join('')}
+        `;
+        // Restore current filter value
+        agentFilterSelect.value = currentAgentFilter;
+
+        const tbody = document.getElementById('agentWorkloads');
+        if (agentsList.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="3" style="color: var(--text-secondary); text-align: center;">No support agents found.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = agentsList.map(agent => `
+          <tr>
+            <td>${escapeHtml(agent.name || 'N/A')}</td>
+            <td>${escapeHtml(agent.email)}</td>
+            <td style="text-align: right; font-weight: 600; color: var(--accent-primary);">${agent.active_ticket_count}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Agents loading failed:', err);
+      }
+    }
+
+    async function loadTickets() {
+      const tbody = document.getElementById('ticketTableBody');
+      try {
+        const response = await API.getAdminTickets(currentStatusFilter, currentPriorityFilter, currentAgentFilter, currentPage, limit);
+        const tickets = response.data;
+        const total = response.total;
+        const totalPages = Math.ceil(total / limit) || 1;
+
+        document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+        document.getElementById('prevBtn').disabled = currentPage === 1;
+        document.getElementById('nextBtn').disabled = currentPage === totalPages;
+
+        if (tickets.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="9" style="color: var(--text-secondary); text-align: center; padding: 2rem;">No tickets match your query.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = tickets.map(ticket => {
+          const assignOptions = agentsList.map(a => `
+            <option value="${a.id}" ${ticket.assigned_agent_id === a.id ? 'selected' : ''}>${escapeHtml(a.name || a.email)}</option>
+          `).join('');
+
+          const customerDisplay = ticket.customer_name 
+            ? `${escapeHtml(ticket.customer_name)}<br><span style="font-size:0.75rem; color:var(--text-secondary);">${escapeHtml(ticket.customer_email)}</span>` 
+            : escapeHtml(ticket.customer_email || 'System');
+
+          const agentDisplay = ticket.assigned_agent_id
+            ? (ticket.agent_name ? `${escapeHtml(ticket.agent_name)} (${escapeHtml(ticket.agent_email)})` : escapeHtml(ticket.agent_email))
+            : '<span style="color:var(--text-muted);">Unassigned</span>';
+
+          return `
+            <tr>
+              <td>#${ticket.id}</td>
+              <td>${customerDisplay}</td>
+              <td>
+                <a href="ticket-detail.html?id=${ticket.id}" style="color: var(--text-primary); text-decoration: none; font-weight: 600;">
+                  ${escapeHtml(ticket.title)}
+                </a>
+              </td>
+              <td>${escapeHtml(ticket.category)}</td>
+              <td>
+                <span class="role-badge" style="color: var(--text-primary); border-color: var(--border-color);">
+                  ${ticket.priority}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge status-${ticket.status}">${ticket.status.replace('_', ' ')}</span>
+              </td>
+              <td>${agentDisplay}</td>
+              <td>${new Date(ticket.created_at).toLocaleDateString()}</td>
+              <td>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <select id="assignSelect-${ticket.id}" style="width: 140px; padding: 0.25rem; font-size: 0.85rem; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                    <option value="">-- Select Agent --</option>
+                    ${assignOptions}
+                  </select>
+                  <button class="btn btn-primary" onclick="assignAgent(${ticket.id})" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; border-radius: 4px;">Assign</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="9" style="color: #ef4444; text-align: center; padding: 2rem;">Error loading tickets: ${err.message}</td></tr>`;
+      }
+    }
+
+    async function assignAgent(ticketId) {
+      const selectEl = document.getElementById(`assignSelect-${ticketId}`);
+      if (!selectEl) return;
+      const agentId = selectEl.value;
+      if (!agentId) {
+        showToast('Warning', 'Please select an agent first.', 'warning');
+        return;
+      }
+      try {
+        await API.assignTicket(ticketId, agentId);
+        showToast('Ticket Assigned', 'The agent has been successfully assigned.', 'success');
+        await init();
+      } catch (err) {
+        showToast('Error', `Assignment failed: ${err.message}`, 'error');
+      }
+    }
+
+    function filterChange() {
+      currentStatusFilter = document.getElementById('statusFilter').value;
+      currentPriorityFilter = document.getElementById('priorityFilter').value;
+      currentAgentFilter = document.getElementById('agentFilter').value;
+      currentPage = 1;
+      loadTickets();
+    }
+
+    function changePage(delta) {
+      currentPage += delta;
+      loadTickets();
+    }
+
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    let activeTab = 'tickets';
+
+    function switchTab(tab) {
+      activeTab = tab;
+      const tabTicketsBtn = document.getElementById('tabTicketsBtn');
+      const tabAnalyticsBtn = document.getElementById('tabAnalyticsBtn');
+      const ticketsView = document.getElementById('ticketsView');
+      const analyticsView = document.getElementById('analyticsView');
+
+      if (tab === 'tickets') {
+        tabTicketsBtn.style.color = 'var(--accent-primary)';
+        tabTicketsBtn.style.borderBottom = '2px solid var(--accent-primary)';
+        tabAnalyticsBtn.style.color = 'var(--text-secondary)';
+        tabAnalyticsBtn.style.borderBottom = 'none';
+        ticketsView.style.display = 'grid';
+        analyticsView.style.display = 'none';
+        loadTickets();
+      } else {
+        tabAnalyticsBtn.style.color = 'var(--accent-primary)';
+        tabAnalyticsBtn.style.borderBottom = '2px solid var(--accent-primary)';
+        tabTicketsBtn.style.color = 'var(--text-secondary)';
+        tabTicketsBtn.style.borderBottom = 'none';
+        ticketsView.style.display = 'none';
+        analyticsView.style.display = 'block';
+        loadAnalytics();
+      }
+    }
+
+    async function loadAnalytics() {
+      try {
+        const data = await API.getAdminAnalytics();
+        
+        document.getElementById('analyticsAvgResolution').textContent = data.averageResolutionTime;
+        
+        const total = data.totalTickets || 1;
+        const openRate = Math.round((data.openTickets / total) * 100);
+        document.getElementById('analyticsOpenRate').textContent = `${openRate}%`;
+
+        const statusChartContainer = document.getElementById('statusChartContainer');
+        const statuses = [
+          { label: 'open', count: data.openTickets, color: '#f59e0b' },
+          { label: 'assigned', count: data.assignedTickets, color: '#3b82f6' },
+          { label: 'in progress', count: data.inProgressTickets, color: '#10b981' },
+          { label: 'resolved', count: data.resolvedTickets, color: '#8b5cf6' },
+          { label: 'closed', count: data.closedTickets, color: '#6b7280' }
+        ];
+        statusChartContainer.innerHTML = statuses.map(s => {
+          const pct = Math.round((s.count / total) * 100) || 0;
+          return `
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                <span style="text-transform: capitalize; font-weight: 500;">${s.label}</span>
+                <span style="font-weight: 600;">${s.count} (${pct}%)</span>
+              </div>
+              <div style="background: var(--bg-tertiary); border-radius: 4px; height: 10px; overflow: hidden; width: 100%;">
+                <div style="background: ${s.color}; width: ${pct}%; height: 100%; border-radius: 4px;"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        const priorityChartContainer = document.getElementById('priorityChartContainer');
+        const priorities = [
+          { label: 'low', count: data.lowPriority, color: '#10b981' },
+          { label: 'medium', count: data.mediumPriority, color: '#f59e0b' },
+          { label: 'high', count: data.highPriority, color: '#ef4444' }
+        ];
+        priorityChartContainer.innerHTML = priorities.map(p => {
+          const pct = Math.round((p.count / total) * 100) || 0;
+          return `
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                <span style="text-transform: capitalize; font-weight: 500;">${p.label}</span>
+                <span style="font-weight: 600;">${p.count} (${pct}%)</span>
+              </div>
+              <div style="background: var(--bg-tertiary); border-radius: 4px; height: 10px; overflow: hidden; width: 100%;">
+                <div style="background: ${p.color}; width: ${pct}%; height: 100%; border-radius: 4px;"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        const agentWorkloadChartContainer = document.getElementById('agentWorkloadChartContainer');
+        const maxActive = Math.max(...data.agentWorkload.map(a => a.activeTickets), 1);
+        if (data.agentWorkload.length === 0) {
+          agentWorkloadChartContainer.innerHTML = `<div style="color: var(--text-secondary); font-size: 0.9rem;">No agents found.</div>`;
+        } else {
+          agentWorkloadChartContainer.innerHTML = data.agentWorkload.map(a => {
+            const pct = Math.round((a.activeTickets / maxActive) * 100) || 0;
+            return `
+              <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                  <span style="font-weight: 500;">${escapeHtml(a.name)}</span>
+                  <span style="font-weight: 600;">${a.activeTickets} active</span>
+                </div>
+                <div style="background: var(--bg-tertiary); border-radius: 4px; height: 10px; overflow: hidden; width: 100%;">
+                  <div style="background: var(--accent-primary); width: ${pct}%; height: 100%; border-radius: 4px;"></div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        const recentTbody = document.getElementById('recentTicketsTableBody');
+        if (data.recentTickets.length === 0) {
+          recentTbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 1rem;">No recent tickets.</td></tr>`;
+        } else {
+          recentTbody.innerHTML = data.recentTickets.map(t => {
+            const customer = t.customer_name 
+              ? `${escapeHtml(t.customer_name)} (${escapeHtml(t.customer_email)})` 
+              : escapeHtml(t.customer_email);
+            const agent = t.assigned_agent_name 
+              ? `${escapeHtml(t.assigned_agent_name)} (${escapeHtml(t.assigned_agent_email)})` 
+              : (t.assigned_agent_email ? escapeHtml(t.assigned_agent_email) : '<span style="color:var(--text-secondary);">Unassigned</span>');
+            return `
+              <tr>
+                <td>#${t.id}</td>
+                <td>
+                  <a href="ticket-detail.html?id=${t.id}" style="color: var(--text-primary); text-decoration: none; font-weight: 600;">
+                    ${escapeHtml(t.title)}
+                  </a>
+                </td>
+                <td><span class="role-badge" style="color:var(--text-primary); border-color:var(--border-color);">${t.priority}</span></td>
+                <td><span class="status-badge status-${t.status}">${t.status.replace('_', ' ')}</span></td>
+                <td>${customer}</td>
+                <td>${agent}</td>
+                <td>${new Date(t.created_at).toLocaleDateString()}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (err) {
+        console.error('Analytics loading failed:', err);
+      }
+    }
+
+    async function init() {
+      await loadAgents();
+      await loadStats();
+      await loadTickets();
+      if (activeTab === 'analytics') {
+        await loadAnalytics();
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

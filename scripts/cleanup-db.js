@@ -1,46 +1,40 @@
 require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
+const mysql = require('mysql2/promise');
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Error: SUPABASE_URL and SUPABASE_SECRET_KEY must be set in .env');
-  process.exit(1);
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-    detectSessionInUrl: false
-  }
-});
+const mysqlConfig = {
+  host: process.env.MYSQL_HOST || 'localhost',
+  port: parseInt(process.env.MYSQL_PORT || '3306', 10),
+  user: process.env.MYSQL_USER || 'root',
+  password: process.env.MYSQL_PASSWORD || '',
+  database: process.env.MYSQL_DATABASE || 'resolvedesk'
+};
 
 async function cleanup() {
-  console.log('Cleaning up database...');
+  console.log('Cleaning up MySQL database...');
+  let connection;
   try {
-    // 1. Delete password reset tokens
-    const { error: err1 } = await supabase.from('password_reset_tokens').delete().neq('id', 0);
-    if (err1) console.log('Error deleting password_reset_tokens:', err1.message);
+    connection = await mysql.createConnection(mysqlConfig);
 
-    // 2. Delete responses
-    const { error: err2 } = await supabase.from('responses').delete().neq('id', 0);
-    if (err2) console.log('Error deleting responses:', err2.message);
+    await connection.query('DELETE FROM password_reset_tokens WHERE id > 0');
+    console.log('✓ Cleared password reset tokens');
 
-    // 3. Delete tickets
-    const { error: err3 } = await supabase.from('tickets').delete().neq('id', 0);
-    if (err3) console.log('Error deleting tickets:', err3.message);
+    await connection.query('DELETE FROM responses WHERE id > 0');
+    console.log('✓ Cleared responses');
 
-    // 4. Delete users except admin@helpdesk.com
-    const { error: err4 } = await supabase.from('users').delete().neq('email', 'admin@helpdesk.com');
-    if (err4) console.log('Error deleting users:', err4.message);
+    await connection.query('DELETE FROM ticket_status_history WHERE id > 0');
+    console.log('✓ Cleared ticket status history');
 
-    console.log('Cleanup completed successfully!');
-    process.exit(0);
+    await connection.query('DELETE FROM tickets WHERE id > 0');
+    console.log('✓ Cleared tickets');
+
+    await connection.query('DELETE FROM users WHERE email != "admin@helpdesk.com"');
+    console.log('✓ Cleared non-admin users');
+
+    console.log('Cleanup completed successfully in MySQL!');
   } catch (err) {
-    console.error('Cleanup encountered exception:', err.message);
-    process.exit(1);
+    console.error('Cleanup encountered error:', err.message);
+  } finally {
+    if (connection) await connection.end();
   }
 }
 

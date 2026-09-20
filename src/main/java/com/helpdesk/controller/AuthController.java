@@ -1,7 +1,10 @@
 package com.helpdesk.controller;
 
+import com.helpdesk.entity.PasswordResetToken;
+import com.helpdesk.entity.User;
+import com.helpdesk.repository.PasswordResetTokenRepository;
+import com.helpdesk.repository.UserRepository;
 import com.helpdesk.security.JwtUtil;
-import com.helpdesk.service.SupabaseService;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -19,11 +22,13 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/auth")
-@SuppressWarnings("unchecked")
 public class AuthController {
 
     @Autowired
-    private SupabaseService supabaseService;
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
     private JwtUtil jwtUtil;
@@ -66,32 +71,18 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid role"));
         }
 
-        // Check duplicate email
-        Map<String, String> checkFilter = new HashMap<>();
-        checkFilter.put("email", "eq." + email);
-        List<Map<String, Object>> existing = supabaseService.select("users", "id", checkFilter, null, null, null);
-        if (existing != null && !existing.isEmpty()) {
+        if (userRepository.existsByEmail(email)) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Collections.singletonMap("error", "User with this email already exists"));
         }
 
         String passwordHash = BCrypt.hashpw(password, BCrypt.gensalt(10));
+        User user = new User(name, email, passwordHash, role);
+        user = userRepository.save(user);
 
-        Map<String, Object> insertData = new HashMap<>();
-        insertData.put("name", name);
-        insertData.put("email", email);
-        insertData.put("password_hash", passwordHash);
-        insertData.put("role", role);
-
-        Map<String, Object> insertedUser = supabaseService.insert("users", insertData);
-        if (insertedUser == null) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("error", "Failed to create user"));
-        }
-
-        Long userId = ((Number) insertedUser.get("id")).longValue();
-        String token = jwtUtil.generateToken(userId, email, role);
+        String token = jwtUtil.generateToken(user.getId(), email, role);
 
         Map<String, Object> userMap = new HashMap<>();
-        userMap.put("id", userId);
+        userMap.put("id", user.getId());
         userMap.put("email", email);
         userMap.put("role", role);
 
@@ -111,22 +102,18 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Email and password are required"));
         }
 
-        Map<String, String> filter = new HashMap<>();
-        filter.put("email", "eq." + email);
-        Map<String, Object> user = supabaseService.selectSingle("users", filter);
-
-        if (user == null || !BCrypt.checkpw(password, (String) user.get("password_hash"))) {
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (!userOpt.isPresent() || !BCrypt.checkpw(password, userOpt.get().getPasswordHash())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Collections.singletonMap("error", "Invalid credentials"));
         }
 
-        Long userId = ((Number) user.get("id")).longValue();
-        String role = (String) user.get("role");
-        String token = jwtUtil.generateToken(userId, email, role);
+        User user = userOpt.get();
+        String token = jwtUtil.generateToken(user.getId(), email, user.getRole());
 
         Map<String, Object> userMap = new HashMap<>();
-        userMap.put("id", userId);
+        userMap.put("id", user.getId());
         userMap.put("email", email);
-        userMap.put("role", role);
+        userMap.put("role", user.getRole());
 
         Map<String, Object> responseMap = new HashMap<>();
         responseMap.put("token", token);
@@ -146,36 +133,31 @@ public class AuthController {
         genericResponse.put("success", true);
         genericResponse.put("message", "If an account exists, a verification code has been sent.");
 
-        Map<String, String> filter = new HashMap<>();
-        filter.put("email", "eq." + email);
-        Map<String, Object> user = supabaseService.selectSingle("users", filter);
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
 
-        if (user != null) {
-            Long userId = ((Number) user.get("id")).longValue();
-
-            // Invalidate any previous OTPs for this user
-            Map<String, Object> updatePayload = new HashMap<>();
-            updatePayload.put("expires_at", Instant.ofEpochMilli(0).toString());
-            Map<String, String> updateFilters = new HashMap<>();
-            updateFilters.put("user_id", "eq." + userId);
-            updateFilters.put("used", "eq.false");
-            supabaseService.update("password_reset_tokens", updatePayload, updateFilters);
+            // Invalidate previous OTPs for this user
+            List<PasswordResetToken> oldTokens = passwordResetTokenRepository.findByUserIdAndUsedFalse(user.getId());
+            for (PasswordResetToken t : oldTokens) {
+                t.setExpiresAt(new Date(0));
+            }
+            passwordResetTokenRepository.saveAll(oldTokens);
 
             // Generate 6 digit OTP
             int otpVal = 100000 + random.nextInt(900000);
             String otp = String.valueOf(otpVal);
             String otpHash = sha256(otp);
-            String expiresAt = Instant.now().plus(10, ChronoUnit.MINUTES).toString();
+            Date expiresAt = Date.from(Instant.now().plus(10, ChronoUnit.MINUTES));
 
-            Map<String, Object> insertToken = new HashMap<>();
-            insertToken.put("user_id", userId);
-            insertToken.put("otp_hash", otpHash);
-            insertToken.put("expires_at", expiresAt);
-            insertToken.put("attempts", 0);
-            insertToken.put("verified", false);
-            insertToken.put("used", false);
-
-            supabaseService.insert("password_reset_tokens", insertToken);
+            PasswordResetToken tokenRecord = new PasswordResetToken();
+            tokenRecord.setUserId(user.getId());
+            tokenRecord.setOtpHash(otpHash);
+            tokenRecord.setExpiresAt(expiresAt);
+            tokenRecord.setAttempts(0);
+            tokenRecord.setVerified(false);
+            tokenRecord.setUsed(false);
+            passwordResetTokenRepository.save(tokenRecord);
 
             System.out.println("[DEV] Password reset OTP generated for testing: " + otp);
 
@@ -201,29 +183,19 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Email and 6-digit OTP are required"));
         }
 
-        Map<String, String> filter = new HashMap<>();
-        filter.put("email", "eq." + email);
-        Map<String, Object> user = supabaseService.selectSingle("users", filter);
-
-        if (user == null) {
+        Optional<User> userOpt = userRepository.findByEmail(email);
+        if (!userOpt.isPresent()) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid verification code"));
         }
 
-        Long userId = ((Number) user.get("id")).longValue();
+        User user = userOpt.get();
+        List<PasswordResetToken> records = passwordResetTokenRepository.findByUserIdAndUsedFalseAndExpiresAtAfterOrderByCreatedAtDesc(user.getId(), new Date());
 
-        Map<String, String> tokenFilters = new HashMap<>();
-        tokenFilters.put("user_id", "eq." + userId);
-        tokenFilters.put("used", "eq.false");
-        tokenFilters.put("expires_at", "gt." + Instant.now().toString());
-        List<Map<String, Object>> records = supabaseService.select("password_reset_tokens", "*", tokenFilters, "created_at.desc", null, null);
-
-        Map<String, Object> latestToken = null;
-        if (records != null) {
-            for (Map<String, Object> r : records) {
-                if (!(Boolean) r.get("verified")) {
-                    latestToken = r;
-                    break;
-                }
+        PasswordResetToken latestToken = null;
+        for (PasswordResetToken r : records) {
+            if (!Boolean.TRUE.equals(r.getVerified())) {
+                latestToken = r;
+                break;
             }
         }
 
@@ -231,21 +203,17 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Verification code expired or not found"));
         }
 
-        int attempts = ((Number) latestToken.get("attempts")).intValue();
+        int attempts = latestToken.getAttempts() != null ? latestToken.getAttempts() : 0;
         if (attempts >= 5) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Too many attempts. Please request a new OTP."));
         }
 
         int newAttempts = attempts + 1;
-        Long tokenId = ((Number) latestToken.get("id")).longValue();
-        Map<String, Object> updateAttempts = new HashMap<>();
-        updateAttempts.put("attempts", newAttempts);
-        Map<String, String> idFilter = new HashMap<>();
-        idFilter.put("id", "eq." + tokenId);
-        supabaseService.update("password_reset_tokens", updateAttempts, idFilter);
+        latestToken.setAttempts(newAttempts);
+        passwordResetTokenRepository.save(latestToken);
 
         String hashedInputOtp = sha256(otp);
-        String dbOtpHash = (String) latestToken.get("otp_hash");
+        String dbOtpHash = latestToken.getOtpHash();
 
         if (!MessageDigest.isEqual(dbOtpHash.getBytes(StandardCharsets.UTF_8), hashedInputOtp.getBytes(StandardCharsets.UTF_8))) {
             int remaining = 5 - newAttempts;
@@ -261,13 +229,12 @@ public class AuthController {
         }
         String resetToken = sb.toString();
         String resetTokenHash = sha256(resetToken);
-        String resetExpiresAt = Instant.now().plus(5, ChronoUnit.MINUTES).toString();
+        Date resetExpiresAt = Date.from(Instant.now().plus(5, ChronoUnit.MINUTES));
 
-        Map<String, Object> updatePayload = new HashMap<>();
-        updatePayload.put("verified", true);
-        updatePayload.put("reset_token_hash", resetTokenHash);
-        updatePayload.put("reset_expires_at", resetExpiresAt);
-        supabaseService.update("password_reset_tokens", updatePayload, idFilter);
+        latestToken.setVerified(true);
+        latestToken.setResetTokenHash(resetTokenHash);
+        latestToken.setResetExpiresAt(resetExpiresAt);
+        passwordResetTokenRepository.save(latestToken);
 
         try {
             File devFile = new File("reset_token_dev.json");
@@ -297,36 +264,25 @@ public class AuthController {
         }
 
         String tokenHash = sha256(resetToken);
+        Optional<PasswordResetToken> tokenOpt = passwordResetTokenRepository.findByResetTokenHashAndVerifiedTrueAndUsedFalseAndResetExpiresAtAfter(tokenHash, new Date());
 
-        Map<String, String> filter = new HashMap<>();
-        filter.put("reset_token_hash", "eq." + tokenHash);
-        filter.put("verified", "eq.true");
-        filter.put("used", "eq.false");
-        filter.put("reset_expires_at", "gt." + Instant.now().toString());
-        Map<String, Object> record = supabaseService.selectSingle("password_reset_tokens", filter);
-
-        if (record == null) {
+        if (!tokenOpt.isPresent()) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid, expired, or already used reset token"));
         }
 
-        Long userId = ((Number) record.get("user_id")).longValue();
-        Long recordId = ((Number) record.get("id")).longValue();
+        PasswordResetToken tokenRecord = tokenOpt.get();
+        Optional<User> userOpt = userRepository.findById(tokenRecord.getUserId());
+        if (!userOpt.isPresent()) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "User not found"));
+        }
 
+        User user = userOpt.get();
         String passwordHash = BCrypt.hashpw(newPassword, BCrypt.gensalt(10));
+        user.setPasswordHash(passwordHash);
+        userRepository.save(user);
 
-        // Update password
-        Map<String, Object> updatePasswordPayload = new HashMap<>();
-        updatePasswordPayload.put("password_hash", passwordHash);
-        Map<String, String> userFilter = new HashMap<>();
-        userFilter.put("id", "eq." + userId);
-        supabaseService.update("users", updatePasswordPayload, userFilter);
-
-        // Mark token as used
-        Map<String, Object> updateTokenPayload = new HashMap<>();
-        updateTokenPayload.put("used", true);
-        Map<String, String> tokenFilter = new HashMap<>();
-        tokenFilter.put("id", "eq." + recordId);
-        supabaseService.update("password_reset_tokens", updateTokenPayload, tokenFilter);
+        tokenRecord.setUsed(true);
+        passwordResetTokenRepository.save(tokenRecord);
 
         try {
             File devFile = new File("reset_token_dev.json");

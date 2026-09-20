@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResolveDesk Ticket Detail</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div>
+        <span class="logo" style="cursor: pointer;" onclick="goHome()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <defs>
+              <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f97316" />
+                <stop offset="100%" stop-color="#eab308" />
+              </linearGradient>
+            </defs>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-width="2.5"/>
+            <path d="m9 12 2 2 4-4" stroke-width="2.5"/>
+          </svg>
+          ResolveDesk
+        </span>
+      </div>
+      <div class="user-nav">
+        <span class="user-info" id="userEmail"></span>
+        <span class="role-badge" id="userRole"></span>
+        <button class="btn btn-secondary" onclick="goHome()">Dashboard</button>
+        <button class="btn btn-secondary" onclick="API.logout()">Sign Out</button>
+      </div>
+    </header>
+
+    <div class="dashboard-grid">
+      <!-- Left side: ticket details and responses -->
+      <div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+          <h2 id="ticketTitle">Loading Ticket...</h2>
+          <span id="ticketStatusBadge" class="status-badge"></span>
+        </div>
+
+        <div class="card" style="max-width: 100%; margin-bottom: 2rem; padding: 1.5rem;">
+          <p id="ticketDesc" style="white-space: pre-wrap; font-size: 1rem; color: var(--text-primary);"></p>
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 2rem;">
+            <span>Ticket ID: #<span id="ticketIdVal"></span></span>
+            <span>Created: <span id="ticketCreatedAt"></span></span>
+            <span>Last Updated: <span id="ticketUpdatedAt"></span></span>
+          </div>
+        </div>
+
+        <!-- Resolution Banner -->
+        <div id="resolutionBanner" class="card" style="display: none; background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(234, 179, 8, 0.15) 100%); border: 1px solid var(--accent-primary); margin-bottom: 2rem; padding: 1.5rem; max-width: 100%;">
+          <h3 style="color: var(--accent-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            This ticket has been marked as resolved
+          </h3>
+          <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem;">Please review the agent's resolution. You can either accept the resolution to close this ticket, or reopen it if the issue persists.</p>
+          <div style="display: flex; gap: 1rem;">
+            <button class="btn" onclick="acceptResolution()">Accept Resolution</button>
+            <button class="btn btn-secondary" onclick="openReopenModal()">Reopen Ticket</button>
+          </div>
+        </div>
+
+        <!-- Reopen Modal -->
+        <div id="reopenModal" class="modal-overlay" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(8px); align-items: center; justify-content: center;">
+          <div class="card" style="width: 100%; max-width: 500px; padding: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <h2 style="margin-bottom: 0.5rem;">Reopen Ticket</h2>
+            <p style="margin-bottom: 1.5rem; font-size: 0.95rem; color: var(--text-secondary);">Please tell us why you are reopening this ticket so we can better assist you.</p>
+            <form id="reopenForm">
+              <div class="form-group">
+                <label for="reopenReason">Reason for reopening</label>
+                <textarea id="reopenReason" rows="4" placeholder="Describe the remaining issues..." required style="background-color: var(--bg-secondary); border: 1.5px solid var(--border-color); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.95rem; width: 100%; min-height: 100px; resize: vertical;"></textarea>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeReopenModal()">Cancel</button>
+                <button type="submit" class="btn">Reopen Ticket</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <h3>Ticket Thread</h3>
+        <div id="threadContainer" class="thread-container">
+          <p style="color: var(--text-secondary);">No responses yet.</p>
+        </div>
+
+        <!-- Add Response Box -->
+        <div id="respondSection" style="margin-top: 2.5rem; display: none;">
+          <h3>Add a Response</h3>
+          <div class="card" style="max-width: 100%; margin-top: 1rem; padding: 1.5rem;">
+            <form id="respondForm">
+              <div class="form-group">
+                <textarea id="respondMessage" rows="4" placeholder="Type your response here..." required></textarea>
+              </div>
+              <button type="submit" class="btn">Send Response</button>
+            </form>
+            <div id="respondError" style="margin-top: 0.5rem; color: #ef4444; font-size: 0.9rem; display: none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right side: ticket status and actions -->
+      <div>
+        <h3 style="margin-bottom: 1rem;">Actions</h3>
+        <div class="card" style="max-width: 100%; padding: 1.5rem;">
+          <div class="form-group">
+            <label>Assigned Agent</label>
+            <div id="assignedAgentEmail" style="font-weight: 600; margin-top: 0.25rem;">Unassigned</div>
+          </div>
+
+          <!-- Admin Assign Controls -->
+          <div id="adminAssignSection" class="form-group" style="display: none; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+            <label for="adminAgentSelect">Assign Agent</label>
+            <select id="adminAgentSelect" onchange="assignAgent(this.value)" style="margin-top: 0.5rem;">
+              <option value="">-- Assign Agent --</option>
+            </select>
+          </div>
+
+          <!-- Status Controls -->
+          <div id="statusActionsSection" style="margin-top: 1rem; display: none;">
+            <label style="display: block; margin-bottom: 0.5rem;">Update Status</label>
+            <div id="statusButtons" style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <!-- Dynamic buttons based on status -->
+            </div>
+          </div>
+
+          <!-- Customer Reopen Button -->
+          <div id="customerReopenSection" style="margin-top: 1rem; display: none;">
+            <button class="btn btn-secondary" onclick="reopenTicket()" style="width: 100%;">Reopen Ticket</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script>
+    const session = API.getSession();
+    if (!session) {
+      window.location.href = 'index.html';
+    }
+
+    function getStatusTicks(status) {
+      if (status === 'open') {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M1.5 6.5L4.5 9.5L11.5 3" stroke="#8696a0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      } else if (status === 'assigned' || status === 'in_progress') {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M15 3L8.5 9.5L5.5 6.5M11.5 3L8.5 6M1.5 6.5L4.5 9.5" stroke="#8696a0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      } else {
+        return `<svg width="16" height="15" viewBox="0 0 16 15" fill="none" style="vertical-align: middle; margin-right: 4px;"><path d="M15 3L8.5 9.5L5.5 6.5M11.5 3L8.5 6M1.5 6.5L4.5 9.5" stroke="#53bdeb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      }
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const ticketId = urlParams.get('id');
+
+    if (!ticketId) {
+      alert('No ticket ID provided');
+      goHome();
+    }
+
+    document.getElementById('userEmail').textContent = session.email;
+    document.getElementById('userRole').textContent = session.role;
+
+    function goHome() {
+      if (session.role === 'admin') window.location.href = 'admin-dashboard.html';
+      else if (session.role === 'agent') window.location.href = 'agent-queue.html';
+      else window.location.href = 'customer-dashboard.html';
+    }
+
+    let ticketDetails = null;
+
+    async function loadTicket() {
+      try {
+        ticketDetails = await API.getTicketDetails(ticketId);
+        
+        // Populate layout
+        document.getElementById('ticketTitle').textContent = ticketDetails.title;
+        document.getElementById('ticketDesc').textContent = ticketDetails.description;
+        document.getElementById('ticketIdVal').textContent = ticketDetails.id;
+        document.getElementById('ticketCreatedAt').textContent = new Date(ticketDetails.created_at).toLocaleString();
+        document.getElementById('ticketUpdatedAt').textContent = new Date(ticketDetails.updated_at).toLocaleString();
+        
+        // Status Badge
+        const statusBadge = document.getElementById('ticketStatusBadge');
+        statusBadge.textContent = ticketDetails.status.replace('_', ' ');
+        statusBadge.className = `status-badge status-${ticketDetails.status}`;
+
+        // Thread
+        const threadContainer = document.getElementById('threadContainer');
+        if (ticketDetails.responses.length === 0) {
+          threadContainer.innerHTML = `<p style="color: var(--text-secondary); text-align: center; width: 100%;">No responses yet.</p>`;
+        } else {
+          threadContainer.innerHTML = ticketDetails.responses.map(res => {
+            const isReopenMsg = res.message.startsWith('Reopened: ');
+            if (isReopenMsg) {
+              return `
+                <div class="chat-bubble system-msg">
+                  <strong>System Notice</strong>
+                  <div style="margin-top: 2px;">${escapeHtml(res.message)}</div>
+                  <div class="chat-meta">${new Date(res.created_at).toLocaleString()}</div>
+                </div>
+              `;
+            }
+
+            const isSent = res.sender_id === session.id;
+            const bubbleClass = isSent ? 'sent' : 'received';
+            
+            return `
+              <div class="chat-bubble ${bubbleClass}">
+                <span class="chat-sender-name">${escapeHtml(res.email)} <span class="role-badge" style="font-size: 0.6rem; padding: 0.05rem 0.3rem;">${res.role}</span></span>
+                <div class="message-body" style="color: #e9edef;">${escapeHtml(res.message)}</div>
+                <div class="chat-meta">
+                  <span>${new Date(res.created_at).toLocaleString()}</span>
+                  ${isSent ? getStatusTicks(ticketDetails.status) : ''}
+                </div>
+              </div>
+            `;
+          }).join('');
+          
+          // Auto-scroll to bottom of chat
+          setTimeout(() => {
+            threadContainer.scrollTop = threadContainer.scrollHeight;
+          }, 50);
+        }
+
+        // Show Response Box based on RBAC:
+        // Customer owns it, Agent is assigned, or Admin
+        const canRespond = 
+          (session.role === 'customer' && ticketDetails.customer_id === session.id) ||
+          (session.role === 'agent' && ticketDetails.assigned_agent_id === session.id) ||
+          (session.role === 'admin');
+
+        if (canRespond) {
+          document.getElementById('respondSection').style.display = 'block';
+        }
+
+        // Update Assigned Agent info
+        const assignedAgentDiv = document.getElementById('assignedAgentEmail');
+        if (ticketDetails.assigned_agent_id) {
+          assignedAgentDiv.textContent = `Agent #${ticketDetails.assigned_agent_id}`;
+        } else {
+          assignedAgentDiv.textContent = 'Unassigned';
+        }
+
+        // Admin-only assignment dropdown
+        if (session.role === 'admin') {
+          const assignSec = document.getElementById('adminAssignSection');
+          assignSec.style.display = 'block';
+          const select = document.getElementById('adminAgentSelect');
+          
+          const agents = await API.getAdminAgents();
+          select.innerHTML = '<option value="">-- Assign Agent --</option>' + agents.map(a => `
+            <option value="${a.id}" ${ticketDetails.assigned_agent_id === a.id ? 'selected' : ''}>${escapeHtml(a.email)}</option>
+          `).join('');
+          
+          if (ticketDetails.assigned_agent_id) {
+            const currentAgentObj = agents.find(a => a.id === ticketDetails.assigned_agent_id);
+            if (currentAgentObj) {
+              assignedAgentDiv.textContent = currentAgentObj.email;
+            }
+          }
+        }
+
+        // Setup Agent/Admin Status Change Buttons
+        const statusActionsSection = document.getElementById('statusActionsSection');
+        const statusButtons = document.getElementById('statusButtons');
+        statusActionsSection.style.display = 'none';
+        statusButtons.innerHTML = '';
+
+        const canChangeStatus = 
+          (session.role === 'admin') || 
+          (session.role === 'agent' && ticketDetails.assigned_agent_id === session.id);
+
+        if (canChangeStatus) {
+          if (ticketDetails.status === 'assigned') {
+            statusActionsSection.style.display = 'block';
+            statusButtons.innerHTML = `
+              <button class="btn" style="background-color: var(--status-in-progress);" onclick="updateStatus('in_progress')">Start Working</button>
+            `;
+          } else if (ticketDetails.status === 'in_progress') {
+            statusActionsSection.style.display = 'block';
+            statusButtons.innerHTML = `
+              <button class="btn" style="background-color: var(--status-resolved);" onclick="updateStatus('resolved')">Mark Resolved</button>
+            `;
+          } else if (ticketDetails.status === 'resolved' && session.role === 'admin') {
+            statusActionsSection.style.display = 'block';
+            statusButtons.innerHTML = `
+              <button class="btn btn-secondary" onclick="updateStatus('closed')">Close Ticket</button>
+            `;
+          }
+        }
+
+        // Setup Resolution Banner and Reopen Section
+        const resolutionBanner = document.getElementById('resolutionBanner');
+        const customerReopenSection = document.getElementById('customerReopenSection');
+        resolutionBanner.style.display = 'none';
+        customerReopenSection.style.display = 'none';
+
+        if (session.role === 'customer' && ticketDetails.customer_id === session.id) {
+          if (ticketDetails.status === 'resolved') {
+            resolutionBanner.style.display = 'block';
+          } else if (ticketDetails.status === 'closed') {
+            customerReopenSection.style.display = 'block';
+          }
+        }
+
+      } catch (err) {
+        alert(`Error loading ticket: ${err.message}`);
+        goHome();
+      }
+    }
+
+    document.getElementById('respondForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('respondMessage').value;
+      const errorDiv = document.getElementById('respondError');
+      errorDiv.style.display = 'none';
+
+      try {
+        await API.postResponse(ticketId, msg);
+        showToast('Response Posted', 'Your message has been added to the thread.', 'success');
+        document.getElementById('respondMessage').value = '';
+        loadTicket();
+      } catch (err) {
+        errorDiv.textContent = err.message;
+        errorDiv.style.display = 'block';
+        showToast('Error', `Failed to send message: ${err.message}`, 'error');
+      }
+    });
+
+    async function assignAgent(agentId) {
+      if (!agentId) return;
+      try {
+        await API.assignTicket(ticketId, agentId);
+        showToast('Ticket Assigned', 'Agent has been successfully assigned.', 'success');
+        loadTicket();
+      } catch (err) {
+        showToast('Error', `Assignment failed: ${err.message}`, 'error');
+      }
+    }
+
+    async function updateStatus(newStatus) {
+      try {
+        await API.updateStatus(ticketId, newStatus);
+        showToast('Status Updated', `Ticket status updated to ${newStatus.replace('_', ' ')}.`, 'success');
+        loadTicket();
+      } catch (err) {
+        showToast('Error', `Status update failed: ${err.message}`, 'error');
+      }
+    }
+
+    function openReopenModal() {
+      document.getElementById('reopenModal').style.display = 'flex';
+    }
+
+    function closeReopenModal() {
+      document.getElementById('reopenModal').style.display = 'none';
+      document.getElementById('reopenReason').value = '';
+    }
+
+    document.getElementById('reopenForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const reason = document.getElementById('reopenReason').value;
+      if (!reason.trim()) {
+        showToast('Warning', 'Reason is required to reopen the ticket.', 'warning');
+        return;
+      }
+      try {
+        await API.reopenTicket(ticketId, reason);
+        closeReopenModal();
+        showToast('Ticket Reopened', 'Ticket has been successfully reopened.', 'success');
+        loadTicket();
+      } catch (err) {
+        showToast('Error', `Failed to reopen ticket: ${err.message}`, 'error');
+      }
+    });
+
+    async function acceptResolution() {
+      const confirmClose = confirm("Are you sure you want to accept the resolution and close this ticket?");
+      if (!confirmClose) return;
+      try {
+        await API.closeTicket(ticketId);
+        showToast('Ticket Closed', 'You have accepted the resolution and closed the ticket.', 'success');
+        loadTicket();
+      } catch (err) {
+        showToast('Error', `Failed to close ticket: ${err.message}`, 'error');
+      }
+    }
+
+    function reopenTicket() {
+      openReopenModal();
+    }
+
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    loadTicket();
+  </script>
+</body>
+</html>

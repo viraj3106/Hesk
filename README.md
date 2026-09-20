@@ -2,7 +2,7 @@
 
 Hey 👋 Welcome to **ResolveDesk**! Every issue deserves an owner, every conversation deserves a history, and every resolution deserves a closed loop. 
 
-**ResolveDesk** is a clean, role-based customer support and ticketing platform designed to streamline issue tracking, assignment, communication, and resolution. Built with a high-performance **Java Spring Boot** backend communicating with **Supabase (Postgres)** via REST, and a sleek, modern **Vanilla JS & CSS** frontend, ResolveDesk is built for speed, safety, and reliability.
+**ResolveDesk** is a clean, role-based customer support and ticketing platform designed to streamline issue tracking, assignment, communication, and resolution. Built with a high-performance **Java Spring Boot (Data JPA & Hibernate)** backend connected directly to **MySQL 8.x**, and a sleek, modern **Vanilla JS & CSS** frontend, ResolveDesk is built for speed, safety, and reliability.
 
 ---
 
@@ -41,9 +41,9 @@ The support ticket lifecycle follows a strict transition flow validated on the s
   - Send replies in ticket threads.
   - Transition tickets from `assigned` ➔ `in_progress` ➔ `resolved`.
 - **Admins:**
-  - View all tickets in the system.
+  - View all tickets in the system with search/filtering.
   - Assign or reassign tickets to agents.
-  - Monitor workload metrics and analytics.
+  - Monitor workload metrics, resolution stats, and analytics.
 
 ---
 
@@ -52,6 +52,8 @@ The support ticket lifecycle follows a strict transition flow validated on the s
 - **Glassmorphic Resolution Modal:** Prompting customers to supply a non-empty reason when reopening tickets.
 - **State History Tracking:** Automatically records transitions in a `ticket_status_history` table.
 - **Role-Based Access Control (RBAC):** Strict JWT verification and role validation interceptor on the backend.
+- **Native MySQL Persistence:** High performance Spring Data JPA / Hibernate ORM with relational integrity and auto-indexing.
+- **Supabase to MySQL Migration Tool:** Built-in automated script to migrate data from Supabase to MySQL.
 
 ---
 
@@ -59,10 +61,10 @@ The support ticket lifecycle follows a strict transition flow validated on the s
 
 ```mermaid
 graph TD
-    A[Frontend: HTML/CSS/Vanilla JS] -->|HTTPS Requests| B[Express Reverse Proxy: Port 3000]
+    A[Frontend: HTML/CSS/Vanilla JS] -->|HTTP Requests| B[Express Proxy / Static Server: Port 3000]
     B -->|Proxies APIs| C[Spring Boot Backend: Port 8080]
     C -->|JWT Interceptor / Security| D[Business Logic & Controllers]
-    D -->|PostgREST HTTP Requests| E[Supabase / Postgres Database]
+    D -->|Spring Data JPA / Hibernate| E[MySQL 8.x Database: Port 3306]
 ```
 
 ---
@@ -88,63 +90,61 @@ flowchart TD
 
 ---
 
-## 💾 Database Structure
-
-We utilize four core tables and a history table in Supabase Postgres:
+## 💾 Database Structure (MySQL 8.x)
 
 ```mermaid
 erDiagram
     users {
-        int8 id PK
-        varchar name
-        varchar email
-        text password_hash
-        varchar role
-        timestamptz created_at
+        BIGINT id PK
+        VARCHAR name
+        VARCHAR email UK
+        VARCHAR password_hash
+        VARCHAR role
+        DATETIME created_at
     }
 
     tickets {
-        int8 id PK
-        int8 customer_id FK
-        varchar title
-        varchar category
-        varchar priority
-        text description
-        varchar status
-        int8 assigned_agent_id FK
-        timestamptz created_at
-        timestamptz updated_at
-        timestamptz resolved_at
+        BIGINT id PK
+        BIGINT customer_id FK
+        BIGINT assigned_agent_id FK
+        VARCHAR title
+        VARCHAR category
+        VARCHAR priority
+        TEXT description
+        VARCHAR status
+        DATETIME created_at
+        DATETIME updated_at
+        DATETIME resolved_at
     }
 
     responses {
-        int8 id PK
-        int8 ticket_id FK
-        int8 sender_id FK
-        text message
-        timestamptz created_at
+        BIGINT id PK
+        BIGINT ticket_id FK
+        BIGINT sender_id FK
+        TEXT message
+        DATETIME created_at
     }
 
     password_reset_tokens {
-        int8 id PK
-        int8 user_id FK
-        text otp_hash
-        timestamptz expires_at
-        int4 attempts
-        bool verified
-        bool used
-        text reset_token_hash
-        timestamptz reset_expires_at
-        timestamptz created_at
+        BIGINT id PK
+        BIGINT user_id FK
+        VARCHAR otp_hash
+        VARCHAR reset_token_hash
+        DATETIME expires_at
+        DATETIME reset_expires_at
+        INT attempts
+        BOOLEAN verified
+        BOOLEAN used
+        DATETIME created_at
     }
 
     ticket_status_history {
-        int8 id PK
-        int8 ticket_id FK
-        varchar old_status
-        varchar new_status
-        int8 changed_by FK
-        timestamptz created_at
+        BIGINT id PK
+        BIGINT ticket_id FK
+        VARCHAR old_status
+        VARCHAR new_status
+        BIGINT changed_by FK
+        DATETIME created_at
     }
 
     users ||--o{ tickets : "creates (customer_id)"
@@ -163,85 +163,91 @@ erDiagram
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/auth/signup` | None | Anyone | User account registration |
 | `POST` | `/auth/login` | None | Anyone | Authenticates credentials and returns JWT token |
+| `POST` | `/auth/forgot-password` | None | Anyone | Sends 6-digit OTP verification code |
+| `POST` | `/auth/verify-otp` | None | Anyone | Validates OTP and issues reset token |
+| `POST` | `/auth/reset-password` | None | Anyone | Updates password using reset token |
 | `POST` | `/tickets` | JWT | `customer` | Submits a new support ticket |
-| `GET` | `/tickets/my` | JWT | `customer` | Lists all tickets owned by the current customer |
-| `GET` | `/tickets/queue` | JWT | `agent` | Paginated queue of tickets assigned to the agent |
+| `GET` | `/tickets/my` | JWT | `customer` | Lists all tickets owned by current customer |
+| `GET` | `/tickets/queue` | JWT | `agent` | Paginated queue of tickets assigned to agent |
 | `GET` | `/tickets/{id}` | JWT | Owner/Assignee/Admin | Retrieves full ticket details and thread comments |
 | `POST` | `/tickets/{id}/respond` | JWT | Owner/Assignee/Admin | Posts a comment response to the ticket thread |
 | `PATCH` | `/tickets/{id}/status` | JWT | `agent`, `admin` | Updates status (e.g. starting work or resolving) |
 | `PATCH` | `/tickets/{id}/assign` | JWT | `admin` | Assigns/Reassigns the ticket to a support agent |
 | `PATCH` | `/tickets/{id}/reopen` | JWT | `customer` (Owner) | Reopens a resolved or closed ticket (requires reason) |
 | `PATCH` | `/tickets/{id}/close` | JWT | `customer` (Owner) | Accepts resolution and closes ticket |
+| `GET` | `/admin/tickets` | JWT | `admin` | Filtered and paginated list of all tickets |
+| `GET` | `/admin/agents` | JWT | `admin` | List of agents and their active ticket workload |
+| `GET` | `/admin/stats` | JWT | `admin` | Overall counts and average resolution time |
+| `GET` | `/admin/analytics` | JWT | `admin` | Comprehensive metrics and charts data |
 
 ---
 
 ## 📂 Project Structure
-- [pom.xml](file:///v:/capstone%20prj/pom.xml) — Maven project configuration.
-- [src/main/java/com/helpdesk/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/) — Java Spring Boot backend codebase.
+- [pom.xml](file:///v:/capstone%20prj/pom.xml) — Maven configuration with Spring Data JPA & MySQL Connector.
+- [mysql_schema_seed.sql](file:///v:/capstone%20prj/mysql_schema_seed.sql) — Full MySQL 8.x schema and demonstration seed data.
+- [src/main/java/com/helpdesk/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/) — Java Spring Boot backend codebase:
+  - [entity/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/entity/) — JPA Entities (`User`, `Ticket`, `TicketResponse`, `PasswordResetToken`, `TicketStatusHistory`).
+  - [repository/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/repository/) — Spring Data JPA Repositories.
   - [controller/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/controller/) — REST Endpoint controllers.
-  - [security/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/security/) — JWT Interceptor configuration and helpers.
-  - [service/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/service/) — RestTemplate-based Supabase PostgREST client service.
-- [server.js](file:///v:/capstone%20prj/server.js) — Lightweight reverse proxy to expose API and serve frontend static assets.
+  - [security/](file:///v:/capstone%20prj/src/main/java/com/helpdesk/security/) — JWT Interceptor and token generation.
+- [server.js](file:///v:/capstone%20prj/server.js) — Reverse proxy and static file server.
 - [public/](file:///v:/capstone%20prj/public/) — Frontend client codebase: HTML, API client, and CSS style tokens.
-- [test-phase9-resolution.js](file:///v:/capstone%20prj/test-phase9-resolution.js) — Phase 9 validation test suite.
-
----
-
-## 🛡️ Security
-- **Strict JWT RBAC:** Requests to protected paths intercept tokens and reject unauthorized roles.
-- **Salting & Hashing:** Passwords hashed with `jbcrypt` (backend) and `bcryptjs` (dev tests).
-- **Secure Credentials:** All Supabase URLs and Secret Keys are loaded via environment variables and never committed.
-
----
-
-## 🧪 Testing
-
-### Running Tests
-Execute the end-to-end resolution flow test suite:
-```bash
-node test-phase9-resolution.js
-```
+- [scripts/](file:///v:/capstone%20prj/scripts/) — Utility scripts:
+  - `migrate-supabase-to-mysql.js` — Automated data migration from Supabase to MySQL.
+  - `seed-admin.js` — Direct MySQL admin seeding script.
+  - `cleanup-db.js` — Direct MySQL test cleanup script.
 
 ---
 
 ## 🚀 Getting Started
 
-### 1. Environment Configuration
-Create a `.env` file in the root folder with:
+### 1. Configure Environment (`.env`)
+Create or edit your `.env` file:
 ```env
-PORT=3000
+# MySQL Database
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DATABASE=resolvedesk
+MYSQL_USER=root
+MYSQL_PASSWORD=your_mysql_password
+
+# Application Settings
 JWT_SECRET=your_jwt_secret_key
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SECRET_KEY=your-supabase-service-role-secret-key
+PORT=3000
 ```
 
-### 2. Spring Boot Server
-Launch the Java Spring Boot backend:
+### 2. Initialize Database (Optional)
+Run the MySQL script if you want initial seed data:
 ```bash
-$env:JAVA_HOME="C:\Program Files\JetBrains\IntelliJ IDEA 2026.2.0.1\jbr"
-.\apache-maven-3.8.6\bin\mvn clean spring-boot:run
+mysql -u root -p < mysql_schema_seed.sql
+```
+*(Alternatively, Spring Boot JPA will automatically create and update tables on startup)*
+
+### 3. Migrate Existing Supabase Data (Optional)
+If you have existing data in Supabase that you want to copy into MySQL:
+```bash
+npm run migrate:supabase
 ```
 
-### 3. Node Proxy
-Run the reverse proxy:
+### 4. Run Spring Boot Backend
 ```bash
-npm install
+mvn spring-boot:run
+```
+
+### 5. Start Frontend Proxy
+```bash
 npm start
 ```
-Navigate to `http://localhost:3000` to start using ResolveDesk!
+Navigate to `http://localhost:3000` to access ResolveDesk!
 
 ---
 
-## 📈 Future Improvements
-- **Live Ticket Updates:** Integrating WebSockets for instantaneous real-time chat threads.
-- **SLA Violation Alerts:** Automatic emails to admins when ticket resolution exceeds target windows.
+## 🛡️ Security
+- **Strict JWT RBAC:** Requests to protected paths intercept tokens and reject unauthorized roles.
+- **Salting & Hashing:** Passwords hashed with `jbcrypt` (backend) and `bcryptjs` (dev scripts).
+- **Secure Credentials:** MySQL credentials and JWT secret loaded via environment variables.
 
-## 🎓 What I Learned
-- Integrating RestTemplate in Spring Boot to directly interact with Supabase PostgREST endpoints.
-- Designing strict legal state transitions in server-side controller APIs.
-
-## 📌 Project Status
-Completed & Capstone Ready.
+---
 
 ## 👤 Author
 Developed by Viraj.

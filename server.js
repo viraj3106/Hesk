@@ -9,9 +9,9 @@ app.use(cors());
 // Serve static frontend files from 'public' directory
 app.use(express.static('public'));
 
-// Proxy API requests to Spring Boot backend on port 8080
+// Proxy API requests to Spring Boot backend on port 8088
 app.use((req, res) => {
-  const targetPort = process.env.SPRING_BOOT_PORT || 8080;
+  const targetPort = process.env.SPRING_BOOT_PORT || 8088;
   const options = {
     hostname: 'localhost',
     port: targetPort,
@@ -53,4 +53,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = app; // For testing
+module.exports = app;

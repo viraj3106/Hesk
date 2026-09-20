@@ -27,13 +27,30 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(jwtInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns("/auth/**", "/js/**", "/css/**", "/images/**", "/*.html", "/");
+                .excludePathPatterns(
+                    "/auth/**",
+                    "/",
+                    "/*.html",
+                    "/*.js",
+                    "/*.css",
+                    "/*.png",
+                    "/*.jpg",
+                    "/*.jpeg",
+                    "/*.svg",
+                    "/*.ico",
+                    "/*.json",
+                    "/js/**",
+                    "/css/**",
+                    "/images/**",
+                    "/static/**",
+                    "/error"
+                );
     }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Serve static resources from the public folder of the root directory
+        // Serve static resources from classpath or public folder
         registry.addResourceHandler("/**")
-                .addResourceLocations("file:public/");
+                .addResourceLocations("classpath:/static/", "classpath:/public/", "file:public/");
     }
 }

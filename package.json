@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test-rbac.js"
+    "seed:admin": "node scripts/seed-admin.js",
+    "cleanup:db": "node scripts/cleanup-db.js",
+    "migrate:supabase": "node scripts/migrate-supabase-to-mysql.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",
@@ -14,7 +16,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.23.0",
-    "sqlite3": "^5.1.7"
+    "mysql2": "^3.24.4",
+    "pg": "^8.23.0"
   }
 }

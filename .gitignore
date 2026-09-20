@@ -5,4 +5,5 @@ target/
 apache-maven-3.8.6/
 *.log
 reset_token_dev.json
+~$*
 

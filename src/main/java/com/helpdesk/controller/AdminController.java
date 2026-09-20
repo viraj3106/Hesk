@@ -1,11 +1,19 @@
 package com.helpdesk.controller;
 
-import com.helpdesk.service.SupabaseService;
+import com.helpdesk.entity.Ticket;
+import com.helpdesk.entity.User;
+import com.helpdesk.repository.TicketRepository;
+import com.helpdesk.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.persistence.criteria.Predicate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -16,10 +24,13 @@ import java.util.*;
 public class AdminController {
 
     @Autowired
-    private SupabaseService supabaseService;
+    private TicketRepository ticketRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     private boolean isAdmin(Map<String, Object> user) {
-        return "admin".equals(user.get("role"));
+        return user != null && "admin".equals(user.get("role"));
     }
 
     @GetMapping("/tickets")
@@ -27,7 +38,7 @@ public class AdminController {
             @RequestAttribute("user") Map<String, Object> user,
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "priority", required = false) String priority,
-            @RequestParam(value = "assigned_agent_id", required = false) String agentId,
+            @RequestParam(value = "assigned_agent_id", required = false) String agentIdStr,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
 
@@ -35,65 +46,67 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        Map<String, String> filters = new HashMap<>();
-        if (status != null && !status.isEmpty()) {
-            filters.put("status", "eq." + status);
-        }
-        if (priority != null && !priority.isEmpty()) {
-            filters.put("priority", "eq." + priority);
-        }
-        if (agentId != null && !agentId.isEmpty()) {
-            if ("unassigned".equals(agentId)) {
-                filters.put("assigned_agent_id", "is.null");
-            } else {
-                filters.put("assigned_agent_id", "eq." + agentId);
+        Specification<Ticket> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (status != null && !status.trim().isEmpty()) {
+                predicates.add(cb.equal(root.get("status"), status.trim()));
             }
+            if (priority != null && !priority.trim().isEmpty()) {
+                predicates.add(cb.equal(root.get("priority"), priority.trim()));
+            }
+            if (agentIdStr != null && !agentIdStr.trim().isEmpty()) {
+                if ("unassigned".equalsIgnoreCase(agentIdStr.trim())) {
+                    predicates.add(cb.isNull(root.get("assignedAgentId")));
+                } else {
+                    try {
+                        Long agentId = Long.parseLong(agentIdStr.trim());
+                        predicates.add(cb.equal(root.get("assignedAgentId"), agentId));
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        int pageIndex = Math.max(0, page - 1);
+        PageRequest pageRequest = PageRequest.of(pageIndex, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Ticket> pageResult = ticketRepository.findAll(spec, pageRequest);
+
+        // Preload users cache to avoid N+1 queries
+        Map<Long, User> userCache = new HashMap<>();
+        for (User u : userRepository.findAll()) {
+            userCache.put(u.getId(), u);
         }
-
-        int offset = (page - 1) * limit;
-        String select = "*,customer:customer_id(name,email),agent:assigned_agent_id(name,email)";
-
-        SupabaseService.PaginatedResult result = supabaseService.selectPaginated(
-                "tickets",
-                select,
-                filters,
-                "created_at.desc",
-                limit,
-                offset
-        );
 
         List<Map<String, Object>> formattedTickets = new ArrayList<>();
-        if (result.data != null) {
-            for (Map<String, Object> t : result.data) {
-                Map<String, Object> formatted = new HashMap<>();
-                formatted.put("id", t.get("id"));
-                formatted.put("title", t.get("title"));
-                formatted.put("category", t.get("category"));
-                formatted.put("priority", t.get("priority"));
-                formatted.put("status", t.get("status"));
-                formatted.put("customer_id", t.get("customer_id"));
-                
-                Map<String, Object> customer = (Map<String, Object>) t.get("customer");
-                formatted.put("customer_name", customer != null ? customer.get("name") : null);
-                formatted.put("customer_email", customer != null ? customer.get("email") : null);
+        for (Ticket t : pageResult.getContent()) {
+            Map<String, Object> formatted = new HashMap<>();
+            formatted.put("id", t.getId());
+            formatted.put("title", t.getTitle());
+            formatted.put("category", t.getCategory());
+            formatted.put("priority", t.getPriority());
+            formatted.put("status", t.getStatus());
+            formatted.put("customer_id", t.getCustomerId());
 
-                formatted.put("assigned_agent_id", t.get("assigned_agent_id"));
-                Map<String, Object> agent = (Map<String, Object>) t.get("agent");
-                formatted.put("agent_name", agent != null ? agent.get("name") : null);
-                formatted.put("agent_email", agent != null ? agent.get("email") : null);
+            User customer = userCache.get(t.getCustomerId());
+            formatted.put("customer_name", customer != null ? customer.getName() : null);
+            formatted.put("customer_email", customer != null ? customer.getEmail() : null);
 
-                formatted.put("created_at", t.get("created_at"));
-                formatted.put("updated_at", t.get("updated_at"));
+            formatted.put("assigned_agent_id", t.getAssignedAgentId());
+            User agent = t.getAssignedAgentId() != null ? userCache.get(t.getAssignedAgentId()) : null;
+            formatted.put("agent_name", agent != null ? agent.getName() : null);
+            formatted.put("agent_email", agent != null ? agent.getEmail() : null);
 
-                formattedTickets.add(formatted);
-            }
+            formatted.put("created_at", t.getCreatedAt());
+            formatted.put("updated_at", t.getUpdatedAt());
+
+            formattedTickets.add(formatted);
         }
 
         Map<String, Object> response = new HashMap<>();
         response.put("data", formattedTickets);
         response.put("page", page);
         response.put("limit", limit);
-        response.put("total", result.total);
+        response.put("total", pageResult.getTotalElements());
 
         return ResponseEntity.ok(response);
     }
@@ -104,38 +117,28 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        Map<String, String> agentFilter = Collections.singletonMap("role", "eq.agent");
-        List<Map<String, Object>> agents = supabaseService.select("users", "id,name,email", agentFilter, null, null, null);
-
-        Map<String, String> ticketFilter = new HashMap<>();
-        // Fetch active tickets
-        List<Map<String, Object>> tickets = supabaseService.select("tickets", "assigned_agent_id,status", null, null, null, null);
+        List<User> agents = userRepository.findByRole("agent");
+        List<Ticket> allTickets = ticketRepository.findAll();
 
         Map<Long, Integer> countsMap = new HashMap<>();
-        if (tickets != null) {
-            for (Map<String, Object> t : tickets) {
-                String status = (String) t.get("status");
-                if (Arrays.asList("assigned", "in_progress").contains(status)) {
-                    Object agentIdObj = t.get("assigned_agent_id");
-                    if (agentIdObj != null) {
-                        Long agentId = ((Number) agentIdObj).longValue();
-                        countsMap.put(agentId, countsMap.getOrDefault(agentId, 0) + 1);
-                    }
+        for (Ticket t : allTickets) {
+            String status = t.getStatus();
+            if (Arrays.asList("assigned", "in_progress").contains(status)) {
+                Long agentId = t.getAssignedAgentId();
+                if (agentId != null) {
+                    countsMap.put(agentId, countsMap.getOrDefault(agentId, 0) + 1);
                 }
             }
         }
 
         List<Map<String, Object>> result = new ArrayList<>();
-        if (agents != null) {
-            for (Map<String, Object> agent : agents) {
-                Long agentId = ((Number) agent.get("id")).longValue();
-                Map<String, Object> r = new HashMap<>();
-                r.put("id", agentId);
-                r.put("name", agent.get("name"));
-                r.put("email", agent.get("email"));
-                r.put("active_ticket_count", countsMap.getOrDefault(agentId, 0));
-                result.add(r);
-            }
+        for (User agent : agents) {
+            Map<String, Object> r = new HashMap<>();
+            r.put("id", agent.getId());
+            r.put("name", agent.getName());
+            r.put("email", agent.getEmail());
+            r.put("active_ticket_count", countsMap.getOrDefault(agent.getId(), 0));
+            result.add(r);
         }
 
         result.sort((a, b) -> ((Integer) b.get("active_ticket_count")).compareTo((Integer) a.get("active_ticket_count")));
@@ -148,18 +151,15 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        List<Map<String, Object>> tickets = supabaseService.select("tickets", "status,created_at,updated_at", null, null, null, null);
-        if (tickets == null) {
-            tickets = Collections.emptyList();
-        }
+        List<Ticket> tickets = ticketRepository.findAll();
 
         long total = tickets.size();
         long open = 0, assigned = 0, inProgress = 0, resolved = 0, closed = 0;
         long totalResolvedClosed = 0;
         double totalDays = 0.0;
 
-        for (Map<String, Object> t : tickets) {
-            String status = (String) t.get("status");
+        for (Ticket t : tickets) {
+            String status = t.getStatus();
             if ("open".equals(status)) open++;
             else if ("assigned".equals(status)) assigned++;
             else if ("in_progress".equals(status)) inProgress++;
@@ -168,11 +168,13 @@ public class AdminController {
 
             if (Arrays.asList("resolved", "closed").contains(status)) {
                 totalResolvedClosed++;
-                Instant created = Instant.parse((String) t.get("created_at"));
-                Instant updated = Instant.parse((String) t.get("updated_at"));
-                long diffMs = Duration.between(created, updated).toMillis();
-                double diffDays = diffMs / (1000.0 * 60.0 * 60.0 * 24.0);
-                totalDays += Math.max(0.0, diffDays);
+                Date created = t.getCreatedAt();
+                Date updated = t.getUpdatedAt();
+                if (created != null && updated != null) {
+                    long diffMs = updated.getTime() - created.getTime();
+                    double diffDays = diffMs / (1000.0 * 60.0 * 60.0 * 24.0);
+                    totalDays += Math.max(0.0, diffDays);
+                }
             }
         }
 
@@ -199,10 +201,7 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        List<Map<String, Object>> tickets = supabaseService.select("tickets", "status,priority,created_at,resolved_at,assigned_agent_id", null, null, null, null);
-        if (tickets == null) {
-            tickets = Collections.emptyList();
-        }
+        List<Ticket> tickets = ticketRepository.findAll();
 
         long totalTickets = tickets.size();
         long openTickets = 0, assignedTickets = 0, inProgressTickets = 0, resolvedTickets = 0, closedTickets = 0;
@@ -211,26 +210,24 @@ public class AdminController {
         long resolvedTicketsListCount = 0;
         long totalMs = 0;
 
-        for (Map<String, Object> t : tickets) {
-            String status = (String) t.get("status");
+        for (Ticket t : tickets) {
+            String status = t.getStatus();
             if ("open".equals(status)) openTickets++;
             else if ("assigned".equals(status)) assignedTickets++;
             else if ("in_progress".equals(status)) inProgressTickets++;
             else if ("resolved".equals(status)) resolvedTickets++;
             else if ("closed".equals(status)) closedTickets++;
 
-            String priority = (String) t.get("priority");
+            String priority = t.getPriority();
             if ("low".equals(priority)) lowPriority++;
             else if ("medium".equals(priority)) mediumPriority++;
             else if ("high".equals(priority)) highPriority++;
 
-            String createdAtStr = (String) t.get("created_at");
-            String resolvedAtStr = (String) t.get("resolved_at");
-            if (createdAtStr != null && resolvedAtStr != null) {
+            Date created = t.getCreatedAt();
+            Date resolvedTime = t.getResolvedAt() != null ? t.getResolvedAt() : (("resolved".equals(status) || "closed".equals(status)) ? t.getUpdatedAt() : null);
+            if (created != null && resolvedTime != null) {
                 resolvedTicketsListCount++;
-                Instant created = Instant.parse(createdAtStr);
-                Instant resolvedTime = Instant.parse(resolvedAtStr);
-                totalMs += Math.max(0, Duration.between(created, resolvedTime).toMillis());
+                totalMs += Math.max(0, resolvedTime.getTime() - created.getTime());
             }
         }
 
@@ -240,57 +237,53 @@ public class AdminController {
         }
 
         // Fetch agents
-        Map<String, String> agentFilter = Collections.singletonMap("role", "eq.agent");
-        List<Map<String, Object>> agents = supabaseService.select("users", "id,name,email", agentFilter, null, null, null);
-
+        List<User> agents = userRepository.findByRole("agent");
         List<Map<String, Object>> agentWorkload = new ArrayList<>();
-        if (agents != null) {
-            for (Map<String, Object> agent : agents) {
-                Long agentId = ((Number) agent.get("id")).longValue();
-                long activeTickets = 0;
-                for (Map<String, Object> t : tickets) {
-                    Object agentIdObj = t.get("assigned_agent_id");
-                    if (agentIdObj != null && ((Number) agentIdObj).longValue() == agentId) {
-                        String status = (String) t.get("status");
-                        if (Arrays.asList("assigned", "in_progress").contains(status)) {
-                            activeTickets++;
-                        }
+        for (User agent : agents) {
+            long activeTickets = 0;
+            for (Ticket t : tickets) {
+                if (agent.getId().equals(t.getAssignedAgentId())) {
+                    String status = t.getStatus();
+                    if (Arrays.asList("assigned", "in_progress").contains(status)) {
+                        activeTickets++;
                     }
                 }
-                Map<String, Object> w = new HashMap<>();
-                w.put("id", agentId);
-                w.put("name", agent.get("name") != null ? agent.get("name") : agent.get("email"));
-                w.put("activeTickets", activeTickets);
-                agentWorkload.add(w);
             }
+            Map<String, Object> w = new HashMap<>();
+            w.put("id", agent.getId());
+            w.put("name", agent.getName() != null ? agent.getName() : agent.getEmail());
+            w.put("activeTickets", activeTickets);
+            agentWorkload.add(w);
         }
         agentWorkload.sort((a, b) -> ((Long) b.get("activeTickets")).compareTo((Long) a.get("activeTickets")));
 
-        // Fetch recent tickets
-        String select = "id,title,category,priority,status,created_at,customer:customer_id(name,email),agent:assigned_agent_id(name,email)";
-        List<Map<String, Object>> recent = supabaseService.select("tickets", select, null, "created_at.desc", 10, null);
+        // Preload users cache
+        Map<Long, User> userCache = new HashMap<>();
+        for (User u : userRepository.findAll()) {
+            userCache.put(u.getId(), u);
+        }
 
+        // Fetch recent 10 tickets
+        List<Ticket> recent = ticketRepository.findTop10ByOrderByCreatedAtDesc();
         List<Map<String, Object>> recentTickets = new ArrayList<>();
-        if (recent != null) {
-            for (Map<String, Object> t : recent) {
-                Map<String, Object> formatted = new HashMap<>();
-                formatted.put("id", t.get("id"));
-                formatted.put("title", t.get("title"));
-                formatted.put("category", t.get("category"));
-                formatted.put("priority", t.get("priority"));
-                formatted.put("status", t.get("status"));
-                
-                Map<String, Object> customer = (Map<String, Object>) t.get("customer");
-                formatted.put("customer_name", customer != null ? customer.get("name") : null);
-                formatted.put("customer_email", customer != null ? customer.get("email") : null);
+        for (Ticket t : recent) {
+            Map<String, Object> formatted = new HashMap<>();
+            formatted.put("id", t.getId());
+            formatted.put("title", t.getTitle());
+            formatted.put("category", t.getCategory());
+            formatted.put("priority", t.getPriority());
+            formatted.put("status", t.getStatus());
 
-                Map<String, Object> agent = (Map<String, Object>) t.get("agent");
-                formatted.put("assigned_agent_name", agent != null ? agent.get("name") : null);
-                formatted.put("assigned_agent_email", agent != null ? agent.get("email") : null);
+            User customer = userCache.get(t.getCustomerId());
+            formatted.put("customer_name", customer != null ? customer.getName() : null);
+            formatted.put("customer_email", customer != null ? customer.getEmail() : null);
 
-                formatted.put("created_at", t.get("created_at"));
-                recentTickets.add(formatted);
-            }
+            User agent = t.getAssignedAgentId() != null ? userCache.get(t.getAssignedAgentId()) : null;
+            formatted.put("assigned_agent_name", agent != null ? agent.getName() : null);
+            formatted.put("assigned_agent_email", agent != null ? agent.getEmail() : null);
+
+            formatted.put("created_at", t.getCreatedAt());
+            recentTickets.add(formatted);
         }
 
         Map<String, Object> response = new HashMap<>();

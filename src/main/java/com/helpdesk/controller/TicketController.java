@@ -1,12 +1,21 @@
 package com.helpdesk.controller;
 
-import com.helpdesk.service.SupabaseService;
+import com.helpdesk.entity.Ticket;
+import com.helpdesk.entity.TicketResponse;
+import com.helpdesk.entity.TicketStatusHistory;
+import com.helpdesk.entity.User;
+import com.helpdesk.repository.TicketRepository;
+import com.helpdesk.repository.TicketResponseRepository;
+import com.helpdesk.repository.TicketStatusHistoryRepository;
+import com.helpdesk.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.*;
 
 @RestController
@@ -15,7 +24,16 @@ import java.util.*;
 public class TicketController {
 
     @Autowired
-    private SupabaseService supabaseService;
+    private TicketRepository ticketRepository;
+
+    @Autowired
+    private TicketResponseRepository ticketResponseRepository;
+
+    @Autowired
+    private TicketStatusHistoryRepository ticketStatusHistoryRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     private static final Map<String, List<String>> LEGAL_TRANSITIONS = new HashMap<>();
     static {
@@ -26,17 +44,20 @@ public class TicketController {
         LEGAL_TRANSITIONS.put("closed", Arrays.asList("in_progress"));
     }
 
-    private Map<String, Object> getTicketOr404(Long id, ResponseEntity<?>[] errorHolder) {
-        Map<String, String> filter = Collections.singletonMap("id", "eq." + id);
-        Map<String, Object> ticket = supabaseService.selectSingle("tickets", filter);
-        if (ticket == null) {
+    private Ticket getTicketOr404(Long id, ResponseEntity<?>[] errorHolder) {
+        Optional<Ticket> opt = ticketRepository.findById(id);
+        if (!opt.isPresent()) {
             errorHolder[0] = ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.singletonMap("error", "Ticket not found"));
+            return null;
         }
-        return ticket;
+        return opt.get();
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createTicket(@RequestAttribute("user") Map<String, Object> user, @RequestBody Map<String, String> body) {
+    public ResponseEntity<Map<String, Object>> createTicket(
+            @RequestAttribute("user") Map<String, Object> user,
+            @RequestBody Map<String, String> body) {
+        
         String role = (String) user.get("role");
         if (!"customer".equals(role)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: insufficient permissions"));
@@ -56,37 +77,41 @@ public class TicketController {
 
         Long customerId = ((Number) user.get("id")).longValue();
 
-        Map<String, Object> insertData = new HashMap<>();
-        insertData.put("title", title);
-        insertData.put("category", category);
-        insertData.put("priority", priority);
-        insertData.put("description", description);
-        insertData.put("customer_id", customerId);
-        insertData.put("status", "open");
+        Ticket ticket = new Ticket();
+        ticket.setTitle(title);
+        ticket.setCategory(category);
+        ticket.setPriority(priority);
+        ticket.setDescription(description);
+        ticket.setCustomerId(customerId);
+        ticket.setStatus("open");
 
-        Map<String, Object> ticket = supabaseService.insert("tickets", insertData);
-        if (ticket == null) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("error", "Failed to create ticket"));
-        }
-        
-        try {
-            Long ticketId = ((Number) ticket.get("id")).longValue();
-            recordStatusHistory(ticketId, null, "open", customerId);
-        } catch (Exception ignored) {}
-        
-        return ResponseEntity.status(HttpStatus.CREATED).body(ticket);
+        ticket = ticketRepository.save(ticket);
+        recordStatusHistory(ticket.getId(), null, "open", customerId);
+
+        Map<String, Object> responseMap = new HashMap<>();
+        responseMap.put("id", ticket.getId());
+        responseMap.put("customer_id", ticket.getCustomerId());
+        responseMap.put("assigned_agent_id", ticket.getAssignedAgentId());
+        responseMap.put("title", ticket.getTitle());
+        responseMap.put("description", ticket.getDescription());
+        responseMap.put("category", ticket.getCategory());
+        responseMap.put("priority", ticket.getPriority());
+        responseMap.put("status", ticket.getStatus());
+        responseMap.put("created_at", ticket.getCreatedAt());
+        responseMap.put("updated_at", ticket.getUpdatedAt());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(responseMap);
     }
 
     @GetMapping("/my")
-    public ResponseEntity<List<Map<String, Object>>> getMyTickets(@RequestAttribute("user") Map<String, Object> user) {
+    public ResponseEntity<List<Ticket>> getMyTickets(@RequestAttribute("user") Map<String, Object> user) {
         String role = (String) user.get("role");
         if (!"customer".equals(role)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         Long customerId = ((Number) user.get("id")).longValue();
-        Map<String, String> filters = Collections.singletonMap("customer_id", "eq." + customerId);
-        List<Map<String, Object>> tickets = supabaseService.select("tickets", "*", filters, "created_at.desc", null, null);
+        List<Ticket> tickets = ticketRepository.findByCustomerIdOrderByCreatedAtDesc(customerId);
         return ResponseEntity.ok(tickets != null ? tickets : Collections.emptyList());
     }
 
@@ -103,72 +128,81 @@ public class TicketController {
         }
 
         Long agentId = ((Number) user.get("id")).longValue();
-        Map<String, String> filters = new HashMap<>();
-        filters.put("assigned_agent_id", "eq." + agentId);
-        if (status != null && !status.isEmpty()) {
-            filters.put("status", "eq." + status);
+        int pageIndex = Math.max(0, page - 1);
+        PageRequest pageRequest = PageRequest.of(pageIndex, limit, Sort.by(Sort.Direction.DESC, "updatedAt"));
+
+        Page<Ticket> pageResult;
+        if (status != null && !status.trim().isEmpty()) {
+            pageResult = ticketRepository.findByAssignedAgentIdAndStatusOrderByUpdatedAtDesc(agentId, status.trim(), pageRequest);
+        } else {
+            pageResult = ticketRepository.findByAssignedAgentIdOrderByUpdatedAtDesc(agentId, pageRequest);
         }
 
-        int offset = (page - 1) * limit;
-        SupabaseService.PaginatedResult result = supabaseService.selectPaginated("tickets", "*", filters, "updated_at.desc", limit, offset);
-
         Map<String, Object> response = new HashMap<>();
-        response.put("data", result.data != null ? result.data : Collections.emptyList());
+        response.put("data", pageResult.getContent());
         response.put("page", page);
         response.put("limit", limit);
-        response.put("total", result.total);
+        response.put("total", pageResult.getTotalElements());
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getTicket(@RequestAttribute("user") Map<String, Object> user, @PathVariable("id") Long id) {
+    public ResponseEntity<?> getTicket(
+            @RequestAttribute("user") Map<String, Object> user,
+            @PathVariable("id") Long id) {
+        
         ResponseEntity<?>[] errorHolder = new ResponseEntity<?>[1];
-        Map<String, Object> ticket = getTicketOr404(id, errorHolder);
+        Ticket ticket = getTicketOr404(id, errorHolder);
         if (ticket == null) return errorHolder[0];
 
         String role = (String) user.get("role");
         Long userId = ((Number) user.get("id")).longValue();
 
-        Long ticketCustomerId = ((Number) ticket.get("customer_id")).longValue();
-        Object assignedAgentObj = ticket.get("assigned_agent_id");
-        Long ticketAgentId = assignedAgentObj != null ? ((Number) assignedAgentObj).longValue() : null;
-
-        if ("customer".equals(role) && !userId.equals(ticketCustomerId)) {
+        if ("customer".equals(role) && !userId.equals(ticket.getCustomerId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not your ticket"));
         }
-        if ("agent".equals(role) && !userId.equals(ticketAgentId)) {
+        if ("agent".equals(role) && !userId.equals(ticket.getAssignedAgentId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not assigned to you"));
         }
 
         // Retrieve responses
-        Map<String, String> filter = Collections.singletonMap("ticket_id", "eq." + id);
-        List<Map<String, Object>> responses = supabaseService.select("responses", "*,users:sender_id(email,role)", filter, "created_at.asc", null, null);
-
+        List<TicketResponse> responses = ticketResponseRepository.findByTicketIdOrderByCreatedAtAsc(id);
         List<Map<String, Object>> flatResponses = new ArrayList<>();
-        if (responses != null) {
-            for (Map<String, Object> r : responses) {
-                Map<String, Object> flat = new HashMap<>();
-                flat.put("id", r.get("id"));
-                flat.put("ticket_id", r.get("ticket_id"));
-                flat.put("sender_id", r.get("sender_id"));
-                flat.put("message", r.get("message"));
-                flat.put("created_at", r.get("created_at"));
-                
-                Map<String, Object> senderUser = (Map<String, Object>) r.get("users");
-                if (senderUser != null) {
-                    flat.put("email", senderUser.get("email"));
-                    flat.put("role", senderUser.get("role"));
-                } else {
-                    flat.put("email", "");
-                    flat.put("role", "");
-                }
-                flatResponses.add(flat);
+
+        for (TicketResponse r : responses) {
+            Map<String, Object> flat = new HashMap<>();
+            flat.put("id", r.getId());
+            flat.put("ticket_id", r.getTicketId());
+            flat.put("sender_id", r.getSenderId());
+            flat.put("message", r.getMessage());
+            flat.put("created_at", r.getCreatedAt());
+
+            Optional<User> senderUserOpt = userRepository.findById(r.getSenderId());
+            if (senderUserOpt.isPresent()) {
+                flat.put("email", senderUserOpt.get().getEmail());
+                flat.put("role", senderUserOpt.get().getRole());
+            } else {
+                flat.put("email", "");
+                flat.put("role", "");
             }
+            flatResponses.add(flat);
         }
 
-        Map<String, Object> responseBody = new HashMap<>(ticket);
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("id", ticket.getId());
+        responseBody.put("customer_id", ticket.getCustomerId());
+        responseBody.put("assigned_agent_id", ticket.getAssignedAgentId());
+        responseBody.put("title", ticket.getTitle());
+        responseBody.put("description", ticket.getDescription());
+        responseBody.put("category", ticket.getCategory());
+        responseBody.put("priority", ticket.getPriority());
+        responseBody.put("status", ticket.getStatus());
+        responseBody.put("created_at", ticket.getCreatedAt());
+        responseBody.put("updated_at", ticket.getUpdatedAt());
+        responseBody.put("resolved_at", ticket.getResolvedAt());
         responseBody.put("responses", flatResponses);
+
         return ResponseEntity.ok(responseBody);
     }
 
@@ -184,35 +218,24 @@ public class TicketController {
         }
 
         ResponseEntity<?>[] errorHolder = new ResponseEntity<?>[1];
-        Map<String, Object> ticket = getTicketOr404(id, errorHolder);
+        Ticket ticket = getTicketOr404(id, errorHolder);
         if (ticket == null) return (ResponseEntity<Map<String, Object>>) errorHolder[0];
 
         String role = (String) user.get("role");
         Long userId = ((Number) user.get("id")).longValue();
 
-        Long ticketCustomerId = ((Number) ticket.get("customer_id")).longValue();
-        Object assignedAgentObj = ticket.get("assigned_agent_id");
-        Long ticketAgentId = assignedAgentObj != null ? ((Number) assignedAgentObj).longValue() : null;
-
-        if ("customer".equals(role) && !userId.equals(ticketCustomerId)) {
+        if ("customer".equals(role) && !userId.equals(ticket.getCustomerId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not your ticket"));
         }
-        if ("agent".equals(role) && !userId.equals(ticketAgentId)) {
+        if ("agent".equals(role) && !userId.equals(ticket.getAssignedAgentId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not assigned to you"));
         }
 
-        // Insert response
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("ticket_id", id);
-        responseData.put("sender_id", userId);
-        responseData.put("message", message.trim());
-        supabaseService.insert("responses", responseData);
+        TicketResponse responseEntity = new TicketResponse(id, userId, message.trim());
+        ticketResponseRepository.save(responseEntity);
 
-        // Update ticket updated_at
-        Map<String, Object> updateTicket = new HashMap<>();
-        updateTicket.put("updated_at", Instant.now().toString());
-        Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
-        supabaseService.update("tickets", updateTicket, ticketFilter);
+        ticket.setUpdatedAt(new Date());
+        ticketRepository.save(ticket);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Collections.singletonMap("message", "Response added successfully"));
     }
@@ -229,7 +252,7 @@ public class TicketController {
         }
 
         ResponseEntity<?>[] errorHolder = new ResponseEntity<?>[1];
-        Map<String, Object> ticket = getTicketOr404(id, errorHolder);
+        Ticket ticket = getTicketOr404(id, errorHolder);
         if (ticket == null) return (ResponseEntity<Map<String, Object>>) errorHolder[0];
 
         String role = (String) user.get("role");
@@ -239,36 +262,29 @@ public class TicketController {
 
         Long userId = ((Number) user.get("id")).longValue();
 
-        Object assignedAgentObj = ticket.get("assigned_agent_id");
-        Long ticketAgentId = assignedAgentObj != null ? ((Number) assignedAgentObj).longValue() : null;
-
-        if ("agent".equals(role) && !userId.equals(ticketAgentId)) {
+        if ("agent".equals(role) && !userId.equals(ticket.getAssignedAgentId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not assigned to you"));
         }
 
-        String currentStatus = (String) ticket.get("status");
+        String currentStatus = ticket.getStatus();
         List<String> allowed = LEGAL_TRANSITIONS.get(currentStatus);
         if (allowed == null || !allowed.contains(status)) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid transition from " + currentStatus + " to " + status));
         }
 
-        // assigned_agent_id must be set before status can move past 'assigned'
-        if (!"assigned".equals(status) && ticketAgentId == null) {
+        if (!"assigned".equals(status) && ticket.getAssignedAgentId() == null) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Cannot transition status past assigned without an assigned agent"));
         }
 
-        Map<String, Object> updatePayload = new HashMap<>();
-        updatePayload.put("status", status);
-        updatePayload.put("updated_at", Instant.now().toString());
+        ticket.setStatus(status);
+        ticket.setUpdatedAt(new Date());
         if ("resolved".equals(status)) {
-            updatePayload.put("resolved_at", Instant.now().toString());
+            ticket.setResolvedAt(new Date());
         } else {
-            updatePayload.put("resolved_at", null);
+            ticket.setResolvedAt(null);
         }
 
-        Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
-        supabaseService.update("tickets", updatePayload, ticketFilter);
-
+        ticketRepository.save(ticket);
         recordStatusHistory(id, currentStatus, status, userId);
 
         return ResponseEntity.ok(Collections.singletonMap("message", "Status updated to " + status));
@@ -301,27 +317,21 @@ public class TicketController {
         }
 
         ResponseEntity<?>[] errorHolder = new ResponseEntity<?>[1];
-        Map<String, Object> ticket = getTicketOr404(id, errorHolder);
+        Ticket ticket = getTicketOr404(id, errorHolder);
         if (ticket == null) return (ResponseEntity<Map<String, Object>>) errorHolder[0];
 
-        // Verify agent_id is indeed an agent
-        Map<String, String> agentFilter = Collections.singletonMap("id", "eq." + agentId);
-        Map<String, Object> agent = supabaseService.selectSingle("users", agentFilter);
-        if (agent == null || !"agent".equals(agent.get("role"))) {
+        Optional<User> agentOpt = userRepository.findById(agentId);
+        if (!agentOpt.isPresent() || !"agent".equals(agentOpt.get().getRole())) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid agent ID"));
         }
 
-        String currentStatus = (String) ticket.get("status");
+        String currentStatus = ticket.getStatus();
+        ticket.setAssignedAgentId(agentId);
+        ticket.setStatus("assigned");
+        ticket.setResolvedAt(null);
+        ticket.setUpdatedAt(new Date());
 
-        Map<String, Object> updatePayload = new HashMap<>();
-        updatePayload.put("assigned_agent_id", agentId);
-        updatePayload.put("status", "assigned");
-        updatePayload.put("resolved_at", null);
-        updatePayload.put("updated_at", Instant.now().toString());
-
-        Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
-        supabaseService.update("tickets", updatePayload, ticketFilter);
-
+        ticketRepository.save(ticket);
         recordStatusHistory(id, currentStatus, "assigned", ((Number) user.get("id")).longValue());
 
         Map<String, Object> response = new HashMap<>();
@@ -349,35 +359,26 @@ public class TicketController {
         }
 
         ResponseEntity<?>[] errorHolder = new ResponseEntity<?>[1];
-        Map<String, Object> ticket = getTicketOr404(id, errorHolder);
+        Ticket ticket = getTicketOr404(id, errorHolder);
         if (ticket == null) return (ResponseEntity<Map<String, Object>>) errorHolder[0];
 
         Long userId = ((Number) user.get("id")).longValue();
-        Long ticketCustomerId = ((Number) ticket.get("customer_id")).longValue();
-
-        if (!userId.equals(ticketCustomerId)) {
+        if (!userId.equals(ticket.getCustomerId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not your ticket"));
         }
 
-        String currentStatus = (String) ticket.get("status");
+        String currentStatus = ticket.getStatus();
         if (!Arrays.asList("resolved", "closed").contains(currentStatus)) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Only resolved or closed tickets can be reopened"));
         }
 
-        Map<String, Object> updatePayload = new HashMap<>();
-        updatePayload.put("status", "in_progress");
-        updatePayload.put("resolved_at", null);
-        updatePayload.put("updated_at", Instant.now().toString());
+        ticket.setStatus("in_progress");
+        ticket.setResolvedAt(null);
+        ticket.setUpdatedAt(new Date());
+        ticketRepository.save(ticket);
 
-        Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
-        supabaseService.update("tickets", updatePayload, ticketFilter);
-
-        // Insert thread comment
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("ticket_id", id);
-        responseData.put("sender_id", userId);
-        responseData.put("message", "Reopened: " + reason.trim());
-        supabaseService.insert("responses", responseData);
+        TicketResponse threadComment = new TicketResponse(id, userId, "Reopened: " + reason.trim());
+        ticketResponseRepository.save(threadComment);
 
         recordStatusHistory(id, currentStatus, "in_progress", userId);
 
@@ -399,27 +400,22 @@ public class TicketController {
         }
 
         ResponseEntity<?>[] errorHolder = new ResponseEntity<?>[1];
-        Map<String, Object> ticket = getTicketOr404(id, errorHolder);
+        Ticket ticket = getTicketOr404(id, errorHolder);
         if (ticket == null) return (ResponseEntity<Map<String, Object>>) errorHolder[0];
 
         Long userId = ((Number) user.get("id")).longValue();
-        Long ticketCustomerId = ((Number) ticket.get("customer_id")).longValue();
-
-        if (!userId.equals(ticketCustomerId)) {
+        if (!userId.equals(ticket.getCustomerId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error", "Access forbidden: not your ticket"));
         }
 
-        String currentStatus = (String) ticket.get("status");
+        String currentStatus = ticket.getStatus();
         if (!"resolved".equals(currentStatus)) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Only resolved tickets can be closed"));
         }
 
-        Map<String, Object> updatePayload = new HashMap<>();
-        updatePayload.put("status", "closed");
-        updatePayload.put("updated_at", Instant.now().toString());
-
-        Map<String, String> ticketFilter = Collections.singletonMap("id", "eq." + id);
-        supabaseService.update("tickets", updatePayload, ticketFilter);
+        ticket.setStatus("closed");
+        ticket.setUpdatedAt(new Date());
+        ticketRepository.save(ticket);
 
         recordStatusHistory(id, currentStatus, "closed", userId);
 
@@ -432,12 +428,8 @@ public class TicketController {
 
     private void recordStatusHistory(Long ticketId, String oldStatus, String newStatus, Long userId) {
         try {
-            Map<String, Object> historyData = new HashMap<>();
-            historyData.put("ticket_id", ticketId);
-            historyData.put("old_status", oldStatus);
-            historyData.put("new_status", newStatus);
-            historyData.put("changed_by", userId);
-            supabaseService.insert("ticket_status_history", historyData);
+            TicketStatusHistory history = new TicketStatusHistory(ticketId, oldStatus, newStatus, userId);
+            ticketStatusHistoryRepository.save(history);
         } catch (Exception e) {
             System.err.println("Warning: failed to record status history: " + e.getMessage());
         }
