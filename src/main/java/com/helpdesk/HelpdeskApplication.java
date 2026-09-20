@@ -26,9 +26,9 @@ public class HelpdeskApplication {
                 User admin = new User();
                 admin.setName("System Administrator");
                 admin.setEmail("admin@resolvedesk.com");
-                admin.setPassword(BCrypt.hashpw("Admin@123456", BCrypt.gensalt(10)));
+                admin.setPasswordHash(BCrypt.hashpw("Admin@123456", BCrypt.gensalt(10)));
                 admin.setRole("admin");
-                admin.setCreatedAt(Instant.now().toString());
+                admin.setCreatedAt(new java.util.Date());
                 userRepository.save(admin);
             }
 
@@ -37,9 +37,9 @@ public class HelpdeskApplication {
                 User agent = new User();
                 agent.setName("Sarah Jenkins (Agent)");
                 agent.setEmail("agent@resolvedesk.com");
-                agent.setPassword(BCrypt.hashpw("Agent@123456", BCrypt.gensalt(10)));
+                agent.setPasswordHash(BCrypt.hashpw("Agent@123456", BCrypt.gensalt(10)));
                 agent.setRole("agent");
-                agent.setCreatedAt(Instant.now().toString());
+                agent.setCreatedAt(new java.util.Date());
                 userRepository.save(agent);
             }
 
@@ -48,9 +48,9 @@ public class HelpdeskApplication {
                 User customer = new User();
                 customer.setName("John Customer");
                 customer.setEmail("customer@resolvedesk.com");
-                customer.setPassword(BCrypt.hashpw("Customer@123456", BCrypt.gensalt(10)));
+                customer.setPasswordHash(BCrypt.hashpw("Customer@123456", BCrypt.gensalt(10)));
                 customer.setRole("customer");
-                customer.setCreatedAt(Instant.now().toString());
+                customer.setCreatedAt(new java.util.Date());
                 customer = userRepository.save(customer);
 
                 // Seed a sample ticket
@@ -61,9 +61,9 @@ public class HelpdeskApplication {
                     ticket.setCategory("Technical Issue");
                     ticket.setPriority("high");
                     ticket.setStatus("open");
-                    ticket.setCreatedBy(customer.getId());
-                    ticket.setCreatedAt(Instant.now().toString());
-                    ticket.setUpdatedAt(Instant.now().toString());
+                    ticket.setCustomerId(customer.getId());
+                    ticket.setCreatedAt(new java.util.Date());
+                    ticket.setUpdatedAt(new java.util.Date());
                     ticketRepository.save(ticket);
                 }
             }
