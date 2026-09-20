@@ -10,7 +10,7 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 # Copy compiled JAR containing full backend and static frontend
-COPY --from=build /app/target/resolvedesk-1.0.0.jar ./resolvedesk.jar
+COPY --from=build /app/target/*.jar ./resolvedesk.jar
 
 # Environment defaults
 ENV PORT=8080
