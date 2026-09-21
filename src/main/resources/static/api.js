@@ -201,7 +201,8 @@ function showToast(title, message, type = 'success') {
       <div class="toast-title">${title}</div>
       <div class="toast-message">${message}</div>
     </div>
-    <button class="toast-close">&times;</button>
+    <button class="toast-close" aria-label="Close notification">&times;</button>
+    <div class="toast-progress"></div>
   `;
 
   const closeBtn = toast.querySelector('.toast-close');
@@ -229,4 +230,29 @@ function showToast(title, message, type = 'success') {
 }
 
 window.showToast = showToast;
+
+// Global Interactive Micro-Animation: Button Ripple on Click
+document.addEventListener('pointerdown', function (e) {
+  const btn = e.target.closest('.btn, .btn-secondary, .btn-danger, .quick-chip, .role-tab-btn');
+  if (!btn) return;
+
+  const rect = btn.getBoundingClientRect();
+  const circle = document.createElement('span');
+  const diameter = Math.max(rect.width, rect.height);
+  const radius = diameter / 2;
+
+  circle.style.width = circle.style.height = `${diameter}px`;
+  circle.style.left = `${e.clientX - rect.left - radius}px`;
+  circle.style.top = `${e.clientY - rect.top - radius}px`;
+  circle.classList.add('ripple-wave');
+
+  const ripple = btn.querySelector('.ripple-wave');
+  if (ripple) {
+    ripple.remove();
+  }
+
+  btn.appendChild(circle);
+  setTimeout(() => circle.remove(), 600);
+});
+
 

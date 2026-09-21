@@ -74,21 +74,44 @@
         </div>
       </div>
       
-      <div class="whatsapp-login-right">
+      <div class="whatsapp-login-right" id="loginCardRight">
+        <!-- Interactive Role Switcher Tabs -->
+        <div class="role-switcher-container" id="roleSwitcher">
+          <div class="role-tab-indicator" id="roleTabIndicator"></div>
+          <button type="button" class="role-tab-btn active" data-role="customer" id="tabCustomer">
+            <span>👤</span> Customer
+          </button>
+          <button type="button" class="role-tab-btn" data-role="agent" id="tabAgent">
+            <span>🎧</span> Agent
+          </button>
+          <button type="button" class="role-tab-btn" data-role="admin" id="tabAdmin">
+            <span>🛡️</span> Admin
+          </button>
+        </div>
+
+        <!-- Admin Portal Badge Banner -->
+        <div class="admin-mode-badge" id="adminBadge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+          <span>ResolveDesk Master Admin Portal</span>
+        </div>
+
         <div id="loginFormSection">
-          <h2>Welcome back</h2>
-          <p>Sign in to manage your support tickets</p>
+          <h2 id="loginHeading">Welcome back</h2>
+          <p id="loginSubheading">Sign in to manage your support tickets</p>
           
           <form id="loginForm">
             <div class="form-group">
               <label for="loginEmail">Email Address</label>
-              <input type="email" id="loginEmail" placeholder="you@example.com" required>
+              <input type="email" id="loginEmail" placeholder="you@example.com" required autocomplete="email">
             </div>
             
             <div class="form-group">
               <label for="loginPassword">Password</label>
               <div class="password-wrapper">
-                <input type="password" id="loginPassword" placeholder="••••••••" required>
+                <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
                 <button type="button" class="password-toggle-btn" tabindex="-1" aria-label="Toggle password visibility">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                 </button>
@@ -98,8 +121,29 @@
               </div>
             </div>
             
-            <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Sign In</button>
+            <button type="submit" id="loginSubmitBtn" class="btn" style="width: 100%; margin-top: 1rem;">
+              <span id="loginBtnText">Sign In as Customer</span>
+            </button>
           </form>
+
+          <!-- 1-Click Quick Demo Login Chips -->
+          <div class="quick-fill-section">
+            <div class="quick-fill-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              Quick Demo 1-Click Login:
+            </div>
+            <div class="quick-fill-chips">
+              <button type="button" class="quick-chip chip-admin" onclick="fillDemoCredentials('admin')">
+                <span>🛡️</span> Admin Demo
+              </button>
+              <button type="button" class="quick-chip chip-agent" onclick="fillDemoCredentials('agent')">
+                <span>🎧</span> Agent Demo
+              </button>
+              <button type="button" class="quick-chip" onclick="fillDemoCredentials('customer')">
+                <span>👤</span> Customer Demo
+              </button>
+            </div>
+          </div>
           
           <p style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">
             Don't have an account? <a href="#" id="showSignup" style="color: var(--accent-primary); text-decoration: none; font-weight: 600;">Create one</a>
@@ -136,6 +180,7 @@
               <select id="signupRole">
                 <option value="customer">Customer (Request Support)</option>
                 <option value="agent">Support Agent (Resolve Issues)</option>
+                <option value="admin">Administrator (System Admin & Analytics)</option>
               </select>
             </div>
             
@@ -328,18 +373,147 @@
       authError.style.display = 'none';
     });
 
+    // Interactive Role Switcher & Micro-Interactions
+    let currentSelectedRole = 'customer';
+    const roleTabs = document.querySelectorAll('.role-tab-btn');
+    const roleTabIndicator = document.getElementById('roleTabIndicator');
+    const loginCardRight = document.getElementById('loginCardRight');
+    const adminBadge = document.getElementById('adminBadge');
+    const loginHeading = document.getElementById('loginHeading');
+    const loginSubheading = document.getElementById('loginSubheading');
+    const loginBtnText = document.getElementById('loginBtnText');
+    const loginEmailInput = document.getElementById('loginEmail');
+    const loginPasswordInput = document.getElementById('loginPassword');
+
+    function updateRoleIndicator(tabElement) {
+      if (!tabElement || !roleTabIndicator) return;
+      roleTabIndicator.style.left = `${tabElement.offsetLeft}px`;
+      roleTabIndicator.style.width = `${tabElement.offsetWidth}px`;
+    }
+
+    function selectRole(role, animate = true) {
+      currentSelectedRole = role;
+      roleTabs.forEach(tab => {
+        if (tab.getAttribute('data-role') === role) {
+          tab.classList.add('active');
+          updateRoleIndicator(tab);
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+
+      loginCardRight.classList.remove('role-admin-mode', 'role-agent-mode');
+
+      if (role === 'admin') {
+        loginCardRight.classList.add('role-admin-mode');
+        adminBadge.style.display = 'flex';
+        loginHeading.textContent = 'Administrator Portal';
+        loginSubheading.textContent = 'Sign in with administrator credentials for full system control';
+        loginBtnText.textContent = 'Sign In as Administrator 🛡️';
+      } else if (role === 'agent') {
+        loginCardRight.classList.add('role-agent-mode');
+        adminBadge.style.display = 'none';
+        loginHeading.textContent = 'Agent Workspace';
+        loginSubheading.textContent = 'Sign in to resolve assigned queue tickets';
+        loginBtnText.textContent = 'Sign In as Support Agent 🎧';
+      } else {
+        adminBadge.style.display = 'none';
+        loginHeading.textContent = 'Welcome back';
+        loginSubheading.textContent = 'Sign in to manage your support tickets';
+        loginBtnText.textContent = 'Sign In as Customer 👤';
+      }
+    }
+
+    roleTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const role = tab.getAttribute('data-role');
+        selectRole(role);
+      });
+    });
+
+    // Window resize observer to reposition the sliding tab indicator
+    window.addEventListener('resize', () => {
+      const activeTab = document.querySelector('.role-tab-btn.active');
+      if (activeTab) updateRoleIndicator(activeTab);
+    });
+
+    // Initialize indicator on load
+    setTimeout(() => {
+      const activeTab = document.querySelector('.role-tab-btn.active');
+      if (activeTab) updateRoleIndicator(activeTab);
+    }, 100);
+
+    // Quick 1-Click Demo Credentials Auto-Fill
+    window.fillDemoCredentials = function(role) {
+      selectRole(role);
+
+      let email = '';
+      let password = '';
+
+      if (role === 'admin') {
+        email = 'admin@resolvedesk.com';
+        password = 'Admin@123456';
+      } else if (role === 'agent') {
+        email = 'agent@resolvedesk.com';
+        password = 'Agent@123456';
+      } else {
+        email = 'customer@resolvedesk.com';
+        password = 'Customer@123456';
+      }
+
+      // Smooth typewriter / focus animation
+      loginEmailInput.value = '';
+      loginPasswordInput.value = '';
+      loginEmailInput.focus();
+
+      let i = 0;
+      const typeInterval = setInterval(() => {
+        if (i < email.length) {
+          loginEmailInput.value += email.charAt(i);
+          i++;
+        } else {
+          clearInterval(typeInterval);
+          loginPasswordInput.value = password;
+          // Pulse feedback on submit button
+          const btn = document.getElementById('loginSubmitBtn');
+          btn.style.transform = 'scale(1.03)';
+          setTimeout(() => { btn.style.transform = ''; }, 200);
+          showToast('Credentials Loaded', `Selected demo ${role.toUpperCase()} account ready to sign in.`, 'info');
+        }
+      }, 18);
+    };
+
+    // Error trigger with micro-shake animation
+    function triggerAuthError(msg) {
+      authError.textContent = msg;
+      authError.style.display = 'block';
+      const card = document.querySelector('.whatsapp-login-card');
+      card.classList.remove('shake-error');
+      void card.offsetWidth; // Reflow to restart CSS animation
+      card.classList.add('shake-error');
+    }
+
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       authError.style.display = 'none';
       const email = document.getElementById('loginEmail').value;
       const password = document.getElementById('loginPassword').value;
+      const submitBtn = document.getElementById('loginSubmitBtn');
+      const originalText = loginBtnText.textContent;
 
       try {
+        loginBtnText.innerHTML = '<span style="display:inline-block; animation: spin 1s linear infinite;">⏳</span> Signing in...';
+        submitBtn.disabled = true;
+
         const data = await API.login(email, password);
-        redirectUser(data.user.role);
+        showToast('Login Successful', `Welcome back, ${data.user.email}!`, 'success');
+        setTimeout(() => {
+          redirectUser(data.user.role);
+        }, 350);
       } catch (err) {
-        authError.textContent = err.message;
-        authError.style.display = 'block';
+        submitBtn.disabled = false;
+        loginBtnText.textContent = originalText;
+        triggerAuthError(err.message || 'Invalid email or password.');
       }
     });
 
@@ -353,13 +527,16 @@
 
       try {
         const data = await API.signup(name, email, password, role);
-        redirectUser(data.user.role);
+        showToast('Account Created', `Welcome to ResolveDesk!`, 'success');
+        setTimeout(() => {
+          redirectUser(data.user.role);
+        }, 350);
       } catch (err) {
-        authError.textContent = err.message;
-        authError.style.display = 'block';
+        triggerAuthError(err.message || 'Failed to create account.');
       }
     });
 
+    // Forgot & Reset Password Handlers
     document.getElementById('forgotForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       authError.style.display = 'none';
@@ -373,10 +550,9 @@
         otpCodeInput.value = '';
         otpCodeInput.focus();
         startResendCooldown();
-        alert('Verification code sent. If the account exists, you can verify it now.');
+        showToast('Code Sent', 'Verification code sent to your email address.', 'info');
       } catch (err) {
-        authError.textContent = err.message;
-        authError.style.display = 'block';
+        triggerAuthError(err.message || 'Failed to send OTP.');
       }
     });
 
@@ -386,10 +562,9 @@
       try {
         await API.forgotPassword(resetEmail);
         startResendCooldown();
-        alert('Verification code resent.');
+        showToast('Code Resent', 'A new verification code was sent to your email.', 'info');
       } catch (err) {
-        authError.textContent = err.message;
-        authError.style.display = 'block';
+        triggerAuthError(err.message || 'Failed to resend OTP.');
       }
     });
 
@@ -403,9 +578,9 @@
         document.getElementById('resetToken').value = data.resetToken;
         verifyOtpSection.style.display = 'none';
         resetSection.style.display = 'block';
+        showToast('Verified', 'Code verified. Set your new password.', 'success');
       } catch (err) {
-        authError.textContent = err.message;
-        authError.style.display = 'block';
+        triggerAuthError(err.message || 'Invalid or expired OTP code.');
       }
     });
 
@@ -417,14 +592,12 @@
       const confirmPassword = document.getElementById('confirmPassword').value;
 
       if (newPassword.length < 6) {
-        authError.textContent = 'Password must be at least 6 characters long';
-        authError.style.display = 'block';
+        triggerAuthError('Password must be at least 6 characters long');
         return;
       }
 
       if (newPassword !== confirmPassword) {
-        authError.textContent = 'Passwords do not match';
-        authError.style.display = 'block';
+        triggerAuthError('Passwords do not match');
         return;
       }
 
@@ -432,11 +605,20 @@
         await API.resetPassword(resetToken, newPassword);
         resetSection.style.display = 'none';
         loginSection.style.display = 'block';
-        alert('Password reset successfully. Please sign in with your new password.');
+        showToast('Password Reset', 'Password updated successfully! Please sign in.', 'success');
       } catch (err) {
-        authError.textContent = err.message;
-        authError.style.display = 'block';
+        triggerAuthError(err.message || 'Failed to reset password.');
       }
+    });
+
+    // Interactive mouse movement parallax for floating doodle shapes
+    document.addEventListener('mousemove', (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 15;
+      const y = (e.clientY / window.innerHeight - 0.5) * 15;
+      document.querySelectorAll('.doodle-shape').forEach((shape, index) => {
+        const depth = (index + 1) * 0.4;
+        shape.style.transform = `translate(${x * depth}px, ${y * depth}px)`;
+      });
     });
 
     // Password visibility toggle logic

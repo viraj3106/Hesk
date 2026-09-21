@@ -67,7 +67,7 @@ public class AuthController {
         if (password.length() < 6) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Password must be at least 6 characters long"));
         }
-        if (!Arrays.asList("customer", "agent").contains(role)) {
+        if (!Arrays.asList("customer", "agent", "admin").contains(role)) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid role"));
         }
 

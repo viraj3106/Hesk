@@ -157,18 +157,21 @@ input, select, textarea {
   padding: 0.75rem 1rem;
   border-radius: 8px;
   font-size: 0.95rem;
-  transition: var(--transition-smooth);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease, background-color 0.25s ease;
   width: 100%;
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+  box-shadow: 0 0 0 3px rgba(0, 168, 132, 0.2), 0 4px 12px rgba(0, 168, 132, 0.1);
+  transform: translateY(-1px);
 }
 
-/* Buttons */
+/* Buttons with Interactive Micro-Animations & Ripple */
 .btn {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -180,14 +183,20 @@ input:focus, select:focus, textarea:focus {
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: var(--transition-smooth);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
   text-decoration: none;
   font-size: 0.95rem;
+  user-select: none;
 }
 
 .btn:hover {
   background-color: var(--accent-hover);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 168, 132, 0.35);
+}
+
+.btn:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .btn-secondary {
@@ -199,6 +208,8 @@ input:focus, select:focus, textarea:focus {
 .btn-secondary:hover {
   background-color: var(--bg-tertiary);
   border-color: var(--text-secondary);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transform: translateY(-2px);
 }
 
 .btn-danger {
@@ -206,6 +217,24 @@ input:focus, select:focus, textarea:focus {
 }
 .btn-danger:hover {
   background-color: #dc2626;
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
+}
+
+/* Ripple Micro Effect */
+.ripple-wave {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(0);
+  animation: ripple-animation 0.6s linear;
+  pointer-events: none;
+}
+
+@keyframes ripple-animation {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
 }
 
 /* Ticket List & Grid */
@@ -236,14 +265,16 @@ input:focus, select:focus, textarea:focus {
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  transition: var(--transition-smooth);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
   text-decoration: none;
   color: inherit;
+  animation: fadeInUp 0.4s ease forwards;
 }
 
 .ticket-item:hover {
   border-color: var(--accent-primary);
-  transform: translateX(4px);
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 15px rgba(0, 168, 132, 0.15);
   background-color: var(--bg-tertiary);
 }
 
@@ -256,6 +287,11 @@ input:focus, select:focus, textarea:focus {
 .ticket-title {
   font-weight: 600;
   font-size: 1.1rem;
+  transition: color 0.2s ease;
+}
+
+.ticket-item:hover .ticket-title {
+  color: #00d2a4;
 }
 
 .ticket-meta {
@@ -263,23 +299,57 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-secondary);
   display: flex;
   gap: 1rem;
+  align-items: center;
 }
 
+/* Status Badges with Pulsing Radar Dot */
 .status-badge {
-  padding: 0.25rem 0.75rem;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.3rem 0.85rem;
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.status-open { background-color: rgba(245, 158, 11, 0.15); color: var(--status-open); }
-.status-assigned { background-color: rgba(59, 130, 246, 0.15); color: var(--status-assigned); }
-.status-in_progress { background-color: rgba(139, 92, 246, 0.15); color: var(--status-in-progress); }
-.status-resolved { background-color: rgba(16, 185, 129, 0.15); color: var(--status-resolved); }
-.status-closed { background-color: rgba(107, 114, 128, 0.15); color: var(--status-closed); }
+.status-badge:hover {
+  transform: scale(1.05);
+}
 
-/* Stats Widgets */
+.status-badge::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  animation: radarPing 2s infinite ease-in-out;
+}
+
+@keyframes radarPing {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0.6;
+  }
+}
+
+.status-open { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+.status-assigned { background-color: rgba(59, 130, 246, 0.15); color: #38bdf8; border: 1px solid rgba(59, 130, 246, 0.3); }
+.status-in_progress { background-color: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); }
+.status-resolved { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+.status-closed { background-color: rgba(107, 114, 128, 0.15); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3); }
+
+/* Stats Widgets with Hover Glow & Counter Micro-Interactions */
 .stats-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -288,18 +358,49 @@ input:focus, select:focus, textarea:focus {
 }
 
 .stat-card {
+  position: relative;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   padding: 1.5rem;
-  border-radius: 12px;
+  border-radius: 14px;
   text-align: center;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-gradient);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0, 168, 132, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(0, 168, 132, 0.15);
+}
+
+.stat-card:hover::after {
+  opacity: 1;
 }
 
 .stat-number {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 2.2rem;
+  font-weight: 800;
   color: var(--accent-primary);
   margin-top: 0.5rem;
+  letter-spacing: -0.02em;
+  transition: transform 0.2s ease;
+}
+
+.stat-card:hover .stat-number {
+  transform: scale(1.08);
 }
 
 /* Thread View */
@@ -1007,6 +1108,260 @@ th {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.3); opacity: 0.6; }
 }
+
+/* ==========================================================
+   ROLE SWITCHER TABS & QUICK DEMO LOGIN MICRO-INTERACTIONS
+   ========================================================== */
+.role-switcher-container {
+  position: relative;
+  background: var(--bg-primary);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  margin-bottom: 1.5rem;
+  gap: 4px;
+  z-index: 1;
+}
+
+.role-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.6rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: color 0.25s ease, transform 0.15s ease;
+  position: relative;
+  z-index: 2;
+  user-select: none;
+}
+
+.role-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.role-tab-btn.active {
+  color: #fff;
+}
+
+.role-tab-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 8px;
+  background: var(--accent-gradient);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s ease, box-shadow 0.3s ease;
+  z-index: 1;
+  box-shadow: 0 4px 14px rgba(0, 168, 132, 0.3);
+}
+
+.role-admin-mode .role-tab-indicator {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+
+.role-agent-mode .role-tab-indicator {
+  background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.4);
+}
+
+/* Quick Fill Demo Badges */
+.quick-fill-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-color);
+}
+
+.quick-fill-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quick-fill-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.quick-chip {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  user-select: none;
+}
+
+.quick-chip:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.quick-chip.chip-admin:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.quick-chip.chip-agent:hover {
+  border-color: #38bdf8;
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.25);
+  color: #7dd3fc;
+}
+
+.quick-chip:active {
+  transform: scale(0.95);
+}
+
+/* Admin Banner & Shield Pulse */
+.admin-mode-badge {
+  display: none;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 1rem;
+  animation: fadeInDown 0.3s ease;
+}
+
+.admin-mode-badge svg {
+  animation: shieldPulse 2s infinite ease-in-out;
+}
+
+@keyframes shieldPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.6)); }
+}
+
+/* Shake Animation for Auth Errors */
+.shake-error {
+  animation: shakeX 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes shakeX {
+  10%, 90% { transform: translate3d(-2px, 0, 0); }
+  20%, 80% { transform: translate3d(3px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Toast Progress Timer Bar */
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--accent-primary);
+  width: 100%;
+  animation: toastProgress 4s linear forwards;
+}
+
+.toast-error .toast-progress {
+  background: #ef4444;
+}
+
+.toast-warning .toast-progress {
+  background: #f59e0b;
+}
+
+.toast-info .toast-progress {
+  background: #3b82f6;
+}
+
+@keyframes toastProgress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* Interactive Modal Backdrop Blur & Pop */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  padding: 1rem;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  transform: scale(0.9) translateY(15px);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+.modal-overlay.active .modal-card {
+  transform: scale(1) translateY(0);
+}
+
 
 
 
