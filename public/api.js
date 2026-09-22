@@ -40,9 +40,18 @@ const API = {
   },
 
   getSession() {
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
-    return token && userStr ? JSON.parse(userStr) : null;
+    try {
+      const token = localStorage.getItem('token');
+      const userStr = localStorage.getItem('user');
+      if (!token || !userStr || userStr === 'undefined' || userStr === 'null') {
+        return null;
+      }
+      return JSON.parse(userStr);
+    } catch (e) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      return null;
+    }
   },
 
   logout() {
